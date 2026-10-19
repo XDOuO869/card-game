@@ -316,7 +316,11 @@ button.pk, button.gc { padding: 0; }
         <li>素材壓在卡的下方，不算 HP。代價付掉後，命牌進自己的槽，術卡進墓地。</li>
         <li>手牌上限：命牌 6 張、術卡 3 張。回合結束時超過的部分，命牌進槽、術卡送墓地。</li>
         <li>每回合一次：從墓地召喚怪獸，或把魔陷加入手牌，要付那張卡的條件（卡片另外寫明的除外）。</li>
-        <li>怪獸攻擊時比牌值，大的贏。對手沒有怪獸時可以直接攻擊，移除對手槽裡 1 張命牌。</li>
+        <li>同名怪獸每回合召喚次數：牌值 1–3 三次、4–9 兩次、10 以上一次。</li>
+        <li>每回合最多 3 隻怪獸可以攻擊。戰鬥比牌值，小的被破壞，一樣大就一起破壞。</li>
+        <li>對手沒有怪獸時可以直接攻擊：移除對手槽 1 張命牌，或從牌堆加 1 張命牌到自己的槽。</li>
+        <li>結束階段：雙方依自己場上的卡數（怪獸＋魔陷），最多從牌堆加那麼多張命牌到自己的槽，回合玩家先。</li>
+        <li>場上怪獸被當成條件時，它下方的素材：命牌進自己的槽，術卡進墓地。</li>
         <li>發亮的卡代表現在能用。點一次選取或行動，同一張卡再點一次看詳細資料。</li>
         <li>額外牌組發亮時點開，選要召喚的卡，再到盤面上點發亮的牌支付條件。</li>
       </ul>
@@ -380,19 +384,26 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 
 const DEFAULT_CFG = {
+  HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
   HAND_LIMIT: 6,            // 命牌手牌上限；超過的部分回合結束放進自己的槽
   GHAND_LIMIT: 3,           // 術卡手牌上限；超過的部分回合結束送墓地
   USE_LIMIT: 1,             // 每回合可使用對方槽命牌的張數
   ZONES: 3,                 // 怪獸區、魔陷區各幾格
   NO_ATTACK_TURNS: 1,       // 開局前幾個回合不能攻擊（1 = 只有先手第一回合）
   P1_DRAWS_TURN1: false,    // 先手第一回合是否抽牌
-  TIE_DESTROYS_BOTH: false, // 戰鬥平手是否同歸於盡
+  TIE_DESTROYS_BOTH: true,  // 戰鬥平手時雙方都破壞
   GY_PER_TURN: 1,           // 每回合可從墓地召喚／取得幾張
   MAX_TURNS: 150,
-  STACKED_MATERIALS: 'deck', // 場上怪獸被當成條件時它原本的素材：deck（命牌回牌堆、術卡進墓地）／transfer／slot
+  STACKED_MATERIALS: 'slot', // 場上怪獸被當成條件時它原本的素材：slot（命牌進自己的槽、術卡進墓地）／deck（命牌回牌堆）／transfer（疊到新怪獸下）
+  SUMMON_LIMIT: true,       // 同名怪獸每回合召喚次數：牌值 1–3 三次、4–9 兩次、10 以上一次
+  ATTACKERS_PER_TURN: 3,    // 每回合最多幾隻怪獸可以攻擊
+  DIRECT_CHOICE: true,      // 直接攻擊可以選「移除對方槽 1 張」或「從牌堆加 1 張到自己的槽」
+  END_INCOME: 'both',       // 結束階段依場上卡數從牌堆補槽：both（雙方，回合玩家先）／turn（只有回合玩家）／off
+  INCOME_COUNT: 'all',      // 補槽算哪些卡：all（怪獸＋魔陷）／monsters（只算怪獸）
+  INCOME_CAP: 99,           // 每次補槽最多幾張
   DECK_SIZE: 15,
   MAX_COPIES: 3
 };
@@ -666,10 +677,13 @@ class PState {
     this.pid = pid; this.hand = []; this.ghand = []; this.slot = []; this.extra = []; this.gy = [];
     this.mons = Array(CFG.ZONES).fill(null); this.sts = Array(CFG.ZONES).fill(null);
     this.usedOpp = 0; this.bonusOpp = 0; this.gyUsed = 0; this.noAttackTurn = -1; this.guard = null;
+    this.summoned = {}; this.attackers = new Set();
   }
 }
 class FieldMon {
-  constructor(card, materials) { this.card = card; this.materials = materials; this.attacked = false; this.used = new Set(); this.immuneUntil = -1; this.sealTurn = -1; }
+  constructor(card, materials) { this.card = card; this.materials = materials; this.atkCount = 0; this.used = new Set(); this.immuneUntil = -1; this.sealTurn = -1; }
+  get maxAttacks() { return this.card.d.attacks || 1; }
+  get attacked() { return this.atkCount >= this.maxAttacks; }
 }
 class FieldST { constructor(card, materials, setTurn) { this.card = card; this.materials = materials; this.setTurn = setTurn; } }
 class Link {
@@ -698,7 +712,7 @@ class Game {
     for (const s of SUITS) for (let r = 1; r <= 13; r++) deck.push(new Poker(++this.uidc, r, s));
     this.rng.shuffle(deck);
     this.hpCard = deck.pop();
-    this.hp = 6 + Math.floor((this.hpCard.rank + 1) / 2);
+    this.hp = CFG.HP_BASE + Math.floor((this.hpCard.rank + 1) / 2);
     this.deck = deck;
     this.P = [new PState(0), new PState(1)];
     for (const ps of this.P) {
@@ -739,6 +753,8 @@ class Game {
   toDeck(c) { this.deck.splice(this.rng.int(this.deck.length + 1), 0, c); }
   returnMaterial(m) { if (m.isPoker) this.toDeck(m); else this.P[m.owner].gy.push(m); }
   freeZone(zones) { const i = zones.indexOf(null); return i < 0 ? null : i; }
+  summonLimit(d) { return !CFG.SUMMON_LIMIT ? Infinity : d.rank <= 3 ? 3 : d.rank <= 9 ? 2 : 1; }
+  canSummonMore(p, card) { return (this.P[p].summoned[card.name] || 0) < this.summonLimit(card.d); }
   takeFromSlot(owner, c) {   // 對方從 owner 的槽拿走或移除一張（壁壘會限制）
     const g = this.P[owner].guard;
     if (g && g.left <= 0) return false;
@@ -905,11 +921,14 @@ class Game {
     this.log(`✖ ${this.nm(owner)} 的 ${obj.card} 被破壞，進墓地${extra}`, null, null, 'kill');
     if (obj.card.d.trig && obj.card.d.trig.destroyed) this.triggers.push({ pid: owner, card: obj.card, event: 'destroyed' });
   }
-  leaveField(owner, z, to) {   // 不是破壞的離場：to = extra（回額外牌組）／gy（送墓地）
+  leaveField(owner, z, to) {   // 不是破壞的離場：to = extra（被彈回額外牌組，素材回牌組）／gy（當成代價送墓地，素材命牌進自己的槽）
     const ps = this.P[owner], fm = ps.mons[z];
     ps.mons[z] = null;
     (to === 'extra' ? this.P[fm.card.owner].extra : this.P[fm.card.owner].gy).push(fm.card);
-    for (const m of fm.materials) this.returnMaterial(m);
+    for (const m of fm.materials) {
+      if (to === 'gy' && CFG.STACKED_MATERIALS === 'slot') (m.isPoker ? ps.slot : this.P[m.owner].gy).push(m);
+      else this.returnMaterial(m);
+    }
     return fm;
   }
   placeMonster(p, card, mats, via = '') {
@@ -918,6 +937,7 @@ class Game {
     const fm = new FieldMon(card, mats);
     if (card.d.immune) fm.immuneUntil = this.turn + 1;
     me.mons[z] = fm;
+    me.summoned[card.name] = (me.summoned[card.name] || 0) + 1;
     this.stat('summon:' + card.name);
     this.log(`→ ${card} 登場${via}`);
     if (card.d.trig && card.d.trig.summoned) this.triggers.push({ pid: p, card, event: 'summoned' });
@@ -938,6 +958,7 @@ class Game {
         if (src === 'gy' && c.d.extraOnly) continue;
         const purpose = c.d.kind === 'monster' ? 'summon' : 'acquire';
         if (c.d.onlyQuick) continue;
+        if (purpose === 'summon' && !this.canSummonMore(p, c)) continue;
         let ok = cache.get(c.name);
         if (ok === undefined) { ok = this.canPay(p, this.paySpec(p, c, purpose)); cache.set(c.name, ok); }
         if (ok) acts.push({ t: purpose, card: c, src });
@@ -953,6 +974,7 @@ class Game {
       const taunts = targets.filter(([d]) => d.card.d.taunt);
       me.mons.forEach((fm, z) => {
         if (!fm || fm.attacked || fm.card.d.cantAttack) return;
+        if (!me.attackers.has(fm) && me.attackers.size >= CFG.ATTACKERS_PER_TURN) return;
         if (targets.length) for (const [, t] of (taunts.length ? taunts : targets)) acts.push({ t: 'attack', z, target: t });
         else acts.push({ t: 'attack', z, target: 'direct' });
       });
@@ -965,7 +987,7 @@ class Game {
     for (const fm of me.mons) {
       if (!fm) continue;
       const r = fm.card.d.rank;
-      if (me.extra.some(c => c.d.kind === 'monster' && c.d.rank > r && c.d.rank <= r + 3)) out.push(fm);
+      if (me.extra.some(c => c.d.kind === 'monster' && c.d.rank > r && c.d.rank <= r + 3 && !c.d.onlyQuick && this.canSummonMore(p, c))) out.push(fm);
     }
     return out;
   }
@@ -975,8 +997,8 @@ class Game {
       case '號令': return this.deck.length > 0;
       case '掠奪令': return op.mons.some(Boolean) || op.sts.some(Boolean);
       case '重整': return me.slot.length > 0;
-      case '輪迴': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.rank <= 8);
-      case '餘燼重燃': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.series === '餘燼');
+      case '輪迴': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.rank <= 8 && this.canSummonMore(p, x));
+      case '餘燼重燃': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.series === '餘燼' && this.canSummonMore(p, x));
       case '傳承': return this.inheritPairs(p).length > 0;
       case '回流': return me.slot.length >= 2;
       case '借道': return true;
@@ -1040,8 +1062,8 @@ class Game {
   }
   resetTurn(p) {
     for (const ps of this.P) {
-      ps.usedOpp = 0; ps.bonusOpp = 0;
-      for (const fm of ps.mons) if (fm) { fm.used.clear(); fm.attacked = false; }
+      ps.usedOpp = 0; ps.bonusOpp = 0; ps.summoned = {}; ps.attackers = new Set();
+      for (const fm of ps.mons) if (fm) { fm.used.clear(); fm.atkCount = 0; }
     }
     this.P[p].gyUsed = 0; this.blocked = new Set();
   }
@@ -1100,6 +1122,21 @@ class Game {
       const k = await this.decide(q, 'respond', { chain: null, opts });
       if (k >= 0) await this.runChain(await this.activateQuick(q, opts[k], null));
       await this.flushTriggers();
+    }
+    if (CFG.END_INCOME !== 'off') {   // 依自己場上的卡數，從牌堆把命牌加入自己的槽；回合玩家先
+      for (const pid of CFG.END_INCOME === 'both' ? [p, q] : [p]) {
+        const ps = this.P[pid];
+        const n = ps.mons.filter(Boolean).length + (CFG.INCOME_COUNT === 'all' ? ps.sts.filter(Boolean).length : 0);
+        const max = Math.min(n, CFG.INCOME_CAP, this.deck.length);
+        if (!max) continue;
+        const k = await this.decide(pid, 'income', { max, field: n });
+        if (!Number.isInteger(k) || k < 0 || k > max) throw new Error('不合法的補槽張數');
+        if (!k) continue;
+        const cards = [];
+        for (let i = 0; i < k; i++) cards.push(this.deck.pop());
+        ps.slot.push(...cards); this.stat('income', k);
+        this.log(`${this.nm(pid)} 結束階段補槽：從牌堆加入 ${fmt(cards)}（槽 ${this.slotScore(pid)}/${this.hp}）`);
+      }
     }
     this.log(`槽：先手 ${this.slotScore(0)}／後手 ${this.slotScore(1)}（HP ${this.hp}），牌堆 ${this.deck.length}`, null, null, 'sum');
   }
@@ -1184,7 +1221,7 @@ class Game {
   }
   makeAttack(p, z, t) {
     const me = this.P[p], op = this.P[1 - p];
-    const fm = me.mons[z]; fm.attacked = true;
+    const fm = me.mons[z]; fm.atkCount++; me.attackers.add(fm);
     const target = t === 'direct' ? 'direct' : op.mons[t];
     this.log(`${this.nm(p)} 的 ${fm.card} ` + (target === 'direct' ? '直接攻擊！' : `攻擊 ${target.card}！`), null, null, 'atk');
     return new Link('attack', p, fm.card, { fm, target });
@@ -1222,6 +1259,7 @@ class Game {
         const qsum = c.d.quickSummon;
         if (!qsum || seen.has(c.name) || this.blocked.has(c.uid)) continue;
         if (qsum === 'attack' && !(oppTop && oppTop.kind === 'attack')) continue;
+        if (!this.canSummonMore(q, c)) continue;
         if (this.canPay(q, this.paySpec(q, c, 'summon'))) { seen.add(c.name); opts.push({ t: 'ambush', card: c, redirect: qsum === 'attack' ? oppTop : null }); }
       }
     }
@@ -1379,7 +1417,8 @@ class Game {
         break;
       }
       case '輪迴': case '餘燼重燃': {
-        const ok = card.name === '輪迴' ? x => x.d.kind === 'monster' && x.d.rank <= 8 : x => x.d.kind === 'monster' && x.d.series === '餘燼';
+        const ok0 = card.name === '輪迴' ? x => x.d.kind === 'monster' && x.d.rank <= 8 : x => x.d.kind === 'monster' && x.d.series === '餘燼';
+        const ok = x => ok0(x) && this.canSummonMore(p, x);
         const cands = me.gy.filter(ok);
         if (!cands.length || this.freeZone(me.mons) === null) { this.log(`${card} 沒有可以召喚的怪獸`); break; }
         const c = await this.pickTarget(p, '從墓地召喚哪隻怪獸？', cands, 'revive');
@@ -1394,7 +1433,7 @@ class Game {
         const z = me.mons.indexOf(fm.fm);
         this.leaveField(p, z, 'gy');
         this.log(`${fm.card} 送墓地`);
-        const ups = me.extra.filter(c => c.d.kind === 'monster' && c.d.rank > r && c.d.rank <= r + 3);
+        const ups = me.extra.filter(c => c.d.kind === 'monster' && c.d.rank > r && c.d.rank <= r + 3 && !c.d.onlyQuick && this.canSummonMore(p, c));
         const c = await this.pickTarget(p, '從額外牌組召喚哪隻怪獸？', dedupeByName(ups), 'upgrade');
         remove(me.extra, c); this.placeMonster(p, c, [], '（傳承）');
         break;
@@ -1483,8 +1522,16 @@ class Game {
     if (!me.mons.includes(fm)) { this.log('攻擊怪獸已不在場上，攻擊取消'); return; }
     if (target === 'direct') {
       if (op.mons.some(Boolean)) { this.log('對方場上出現怪獸，直接攻擊取消'); return; }
-      if (!op.slot.length) { this.log('對方槽沒有命牌可以移除'); return; }
-      if (op.guard && op.guard.left <= 0) { this.log('壁壘擋下了這次移除'); return; }
+      const canRemove = op.slot.length > 0 && !(op.guard && op.guard.left <= 0);
+      const canAdd = CFG.DIRECT_CHOICE && this.deck.length > 0;
+      if (!canRemove && !canAdd) { this.log(op.slot.length ? '壁壘擋下了這次移除' : '對方槽沒有命牌可以移除'); return; }
+      let how = canRemove ? 'remove' : 'add';
+      if (canRemove && canAdd) how = await this.decide(p, 'direct', { canRemove, canAdd });
+      if (how === 'add') {
+        const c = this.deck.pop(); me.slot.push(c); this.stat('direct_add');
+        this.log(`→ 從牌堆把 ${c} 加入 ${this.nm(p)} 的槽（槽 ${this.slotScore(p)}/${this.hp}）`, null, null, 'kill');
+        return;
+      }
       const c = await this.pickTarget(p, '選擇要從對方槽移除的命牌', op.slot, 'remove');
       this.takeFromSlot(1 - p, c); this.toDeck(c); this.stat('direct');
       this.log(`→ 移除對方槽的 ${c}，洗回牌堆（${this.nm(1 - p)} 槽 ${this.slotScore(1 - p)}/${this.hp}）`, null, null, 'kill');
@@ -1497,7 +1544,10 @@ class Game {
     else if (a < b) await this.battleDestroy(p, fm, target.card.name === '紅心騎士' ? 1 - p : null);
     else {
       this.log('牌值相同');
-      if (CFG.TIE_DESTROYS_BOTH) { await this.battleDestroy(1 - p, target, null); await this.battleDestroy(p, fm, null); }
+      if (CFG.TIE_DESTROYS_BOTH) {
+        await this.battleDestroy(1 - p, target, fm.card.name === '紅心騎士' ? p : null);
+        await this.battleDestroy(p, fm, target.card.name === '紅心騎士' ? 1 - p : null);
+      }
     }
   }
 
@@ -1524,7 +1574,7 @@ class Game {
     for (const ps of this.P) {
       parts.push(ids(ps.hand), ids(ps.slot), ids(ps.gy), ids(ps.extra), ids(ps.ghand), ps.usedOpp, ps.gyUsed, ps.bonusOpp,
         ps.guard ? ps.guard.left : '-',
-        ps.mons.map(f => (f ? f.card.uid + ':' + ids(f.materials) + (f.attacked ? 'a' : '') : '-')).join('|'),
+        ps.mons.map(f => (f ? f.card.uid + ':' + ids(f.materials) + 'a' + f.atkCount : '-')).join('|'), ps.attackers.size, JSON.stringify(ps.summoned),
         ps.sts.map(s => (s ? s.card.uid + ':' + ids(s.materials) : '-')).join('|'));
     }
     const s = parts.join(';'); let h = 5381;
@@ -1578,6 +1628,14 @@ class AIAgent {
       case 'target': return this.chooseTarget(g, p, pl.opts, pl.kind);
       case 'respond': return this.chooseResponse(g, p, pl.chain, pl.opts);
       case 'intercept': case 'trigger': case 'yesno': return true;
+      case 'direct': {   // 對方比較接近勝利就移除，否則加到自己的槽
+        const opp = g.slotScore(1 - p), mine = g.slotScore(p);
+        return pl.canRemove && (opp >= mine || opp >= g.hp - 2) ? 'remove' : 'add';
+      }
+      case 'income': {   // 回合玩家拿滿；對手留 1 張給自己下回合抽（除非拿滿就能贏）
+        if (g.cur === p || g.slotScore(p) + pl.max >= g.hp) return pl.max;
+        return Math.max(0, Math.min(pl.max, g.deck.length - 1));
+      }
     }
     throw new Error('未知的決策 ' + kind);
   }
@@ -1946,7 +2004,8 @@ function showScreen(name) {
   if (name === 'menu') { updateRecCount(); fillDeckSelects(); $('#status').textContent = ''; hidePop(); }
   window.scrollTo(0, 0);
 }
-function loadCfg() { E.setConfig(LS.get('cg-cfg', {})); }
+const CFG_KEY = 'cg-cfg-v2';
+function loadCfg() { E.setConfig(LS.get(CFG_KEY, {})); }
 function download(name, obj) {
   const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
@@ -2006,6 +2065,7 @@ function cardInfoHTML(c, holder) {
   return `<div class="cardinfo"><div class="big">${gcHTML(c, { key: null })}<dl>
     <dt>種類</dt><dd>${KIND[d.kind]}${d.series ? `<span class="series">${esc(d.series)}</span>` : ''}</dd>
     ${d.kind === 'monster' ? `<dt>花色牌值</dt><dd>${d.suit}${E.rankStr(d.rank)}</dd>` : ''}
+    ${d.kind === 'monster' && E.CFG.SUMMON_LIMIT ? `<dt>召喚次數</dt><dd>每回合最多 ${d.rank <= 3 ? 3 : d.rank <= 9 ? 2 : 1} 次</dd>` : ''}
     <dt>條件</dt><dd>${esc(reqText(d))}</dd><dt>效果</dt><dd>${esc(d.text)}</dd>
     ${holder && holder.materials.length ? `<dt>素材</dt><dd>${holder.materials.map(chipHTML).join(' ')}</dd>` : ''}
   </dl></div></div>`;
@@ -2162,7 +2222,7 @@ function renderPrompt() {
     const canPlace = mainActs().some(a => a.t === 'place');
     const n = app.placeSel.size;
     html = `<div class="prompt"><h3>你的回合</h3><p>點發亮的卡行動。同一張卡再點一次看詳細資料。</p>`
-      + (me.noAttackTurn === g.turn ? '<p>止戈：這回合不能攻擊。</p>' : '')
+      + (me.noAttackTurn === g.turn ? '<p>止戈：這回合不能攻擊。</p>' : `<p>這回合已有 ${me.attackers.size} / ${E.CFG.ATTACKERS_PER_TURN} 隻怪獸攻擊。</p>`)
       + (n ? `<div class="btns"><button class="btn primary" id="pPlace">放進血量槽（${n} 張）</button><button class="btn" id="pPlaceClear">取消選擇</button></div>`
         : canPlace ? '<p>點命牌手牌，可以選要放進血量槽的牌。</p>' : '')
       + `<button class="endturn" id="pEnd">結束回合</button>
@@ -2353,7 +2413,7 @@ function startAttack(z) {
   const targets = new Map();
   for (const [a, i] of list) {
     const dfm = op.mons[a.target], r = dfm.card.d.rank;
-    let tag = att > r ? { text: '可破壞', cls: 'win' } : att < r ? { text: '會被破壞', cls: 'lose' } : { text: '平手', cls: 'tie' };
+    let tag = att > r ? { text: '可破壞', cls: 'win' } : att < r ? { text: '會被破壞', cls: 'lose' } : { text: E.CFG.TIE_DESTROYS_BOTH ? '同歸於盡' : '平手', cls: 'tie' };
     if (att > r && dfm.immuneUntil >= g.turn) tag = { text: '不會被戰破', cls: 'tie' };
     targets.set('u' + dfm.card.uid, { i, tag });
   }
@@ -2474,7 +2534,8 @@ function renderViewer(open) {
     if (v.sel) {
       const c = cards.find(x => x.uid === v.sel);
       const why = c && !use.has(c.uid) && v.type !== 'deck' && v.pid === app.viewer && app.ui.mode === 'idle'
-        ? (c.d.onlyQuick ? '只能在對方攻擊時召喚。' : c.d.extraOnly && v.type === 'gy' ? '只能從額外牌組召喚。' : '目前湊不齊條件。') : '';
+        ? (c.d.onlyQuick ? '只能在對方攻擊時召喚。' : c.d.extraOnly && v.type === 'gy' ? '只能從額外牌組召喚。'
+          : c.d.kind === 'monster' && !g.canSummonMore(v.pid, c) ? `這回合已經召喚 ${g.summonLimit(c.d)} 次，到上限了。` : '目前湊不齊條件。') : '';
       hint = c ? `${c.d.name}：${reqText(c.d)}。${why}再點一次看詳細資料。` : '';
     } else if (use.size) hint = '發亮的卡現在可以使用，點一下開始支付。其他卡點一下看條件，再點一次看詳細資料。';
     else hint = '點一下看條件，再點一次看詳細資料。';
@@ -2560,6 +2621,16 @@ function ask(kind, pl, g, p, resolve) {
         options: ['發動'], noneLabel: '不發動', onPick: k => resolve(k === 0) });
     case 'yesno':
       return chooseModal({ title: pl.prompt, options: ['是'], noneLabel: '否', onPick: k => resolve(k === 0) });
+    case 'direct':
+      return chooseModal({ title: '直接攻擊：選一個效果', desc: `對手槽 ${g.slotScore(1 - p)} / ${g.hp}，你的槽 ${g.slotScore(p)} / ${g.hp}，牌堆 ${g.deck.length} 張。`,
+        options: ['移除對手血量槽 1 張命牌（洗回牌堆）', '從牌堆加 1 張命牌到你的血量槽'], onPick: k => resolve(k === 0 ? 'remove' : 'add') });
+    case 'income': {
+      const left = g.deck.length;
+      const warn = left - pl.max <= 1 ? ' 牌堆抽完時，下一個要抽牌的人判負，注意別把自己下回合要抽的牌拿光。' : '';
+      const opts = []; for (let i = pl.max; i >= 1; i--) opts.push(`加入 ${i} 張`);
+      return chooseModal({ title: '結束階段：補槽', desc: `你場上有 ${pl.field} 張卡，可以從牌堆加入最多 ${pl.max} 張命牌到你的血量槽（槽 ${g.slotScore(p)} / ${g.hp}，牌堆 ${left} 張）。${warn}`,
+        options: opts, noneLabel: '不加入', onPick: k => resolve(k < 0 ? 0 : pl.max - k) });
+    }
     case 'intercept':
       return chooseModal({ title: '要發動截流嗎？', desc: `對手拔除了素材 ${pl.m}。發動後這張命牌改進你的血量槽。`,
         options: ['發動截流'], noneLabel: '不發動', onPick: k => resolve(k === 0) });
@@ -2796,14 +2867,21 @@ function saveBuilder() {
 
 // ─────────── 規則設定 ───────────
 const CFG_FIELDS = [
+  ['HP_BASE', 'HP 基數（HP = 基數 + 血量牌牌值的一半）', 'num', 1, 30],
   ['HAND_LIMIT', '命牌手牌上限', 'num', 1, 15],
   ['GHAND_LIMIT', '術卡手牌上限', 'num', 1, 10],
   ['USE_LIMIT', '每回合可使用對手槽的張數', 'num', 0, 5],
-  ['NO_ATTACK_TURNS', '開局前幾個回合不能攻擊（1 = 只有先手第一回合）', 'num', 0, 4],
   ['GY_PER_TURN', '每回合可從墓地召喚或取得幾張', 'num', 0, 3],
-  ['P1_DRAWS_TURN1', '先手第一回合也抽牌', 'bool'],
+  ['SUMMON_LIMIT', '同名怪獸每回合召喚次數限制（牌值 1–3 三次、4–9 兩次、10 以上一次）', 'bool'],
+  ['ATTACKERS_PER_TURN', '每回合最多幾隻怪獸可以攻擊', 'num', 1, 9],
+  ['NO_ATTACK_TURNS', '開局前幾個回合不能攻擊（1 = 只有先手第一回合）', 'num', 0, 4],
   ['TIE_DESTROYS_BOTH', '戰鬥平手時雙方都破壞', 'bool'],
-  ['STACKED_MATERIALS', '場上怪獸被當成條件時，它原本的素材', 'sel', [['deck', '命牌洗回牌堆、術卡進墓地'], ['transfer', '疊到新怪獸下方'], ['slot', '命牌進自己的槽']]]
+  ['DIRECT_CHOICE', '直接攻擊可以改成從牌堆加 1 張到自己的槽', 'bool'],
+  ['END_INCOME', '結束階段補槽', 'sel', [['both', '雙方都補（回合玩家先）'], ['turn', '只有回合玩家補'], ['off', '不補']]],
+  ['INCOME_COUNT', '補槽張數依照', 'sel', [['all', '場上的怪獸和魔陷'], ['monsters', '場上的怪獸']]],
+  ['INCOME_CAP', '每次補槽最多幾張', 'num', 0, 99],
+  ['P1_DRAWS_TURN1', '先手第一回合也抽牌', 'bool'],
+  ['STACKED_MATERIALS', '場上怪獸被當成條件時，它原本的素材', 'sel', [['slot', '命牌進自己的槽、術卡進墓地'], ['deck', '命牌洗回牌堆、術卡進墓地'], ['transfer', '疊到新怪獸下方']]]
 ];
 function openSettings() {
   loadCfg();
@@ -2816,7 +2894,7 @@ function openSettings() {
     return `<label for="cfg_${k}">${label}</label>${input}`;
   }).join('')}</div><p class="note">影響和 AI 對戰、觀戰、批次模擬。線上對戰時以房主的設定為準。</p>`;
   openModal({ title: '規則設定', body, dismissable: true, buttons: [
-    { label: '恢復預設', onClick: () => { LS.set('cg-cfg', {}); closeModal(); openSettings(); } },
+    { label: '恢復預設', onClick: () => { LS.set(CFG_KEY, {}); closeModal(); openSettings(); } },
     { label: '儲存', primary: true, onClick: () => {
       const c = {};
       for (const [k, , type, a, b] of CFG_FIELDS) {
@@ -2825,7 +2903,7 @@ function openSettings() {
         else if (type === 'bool') c[k] = el.checked;
         else c[k] = el.value;
       }
-      LS.set('cg-cfg', c); loadCfg(); closeModal(); toast('規則設定已儲存');
+      LS.set(CFG_KEY, c); loadCfg(); closeModal(); toast('規則設定已儲存');
     } }] });
 }
 

@@ -212,6 +212,23 @@ button.pk, button.gc { padding: 0; }
 .viewer .loc { font-size: 11px; color: var(--muted); }
 #mHint { min-height: 1.5em; }
 
+/* ── 組牌 ── */
+#builder { max-width: 1040px; margin: 0 auto; padding: 32px 20px 60px; }
+.b-bar { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--felt-deep); border-bottom: 1px solid var(--zone-line); padding: 12px 0; margin: 16px 0 8px; }
+.b-bar b { font-family: var(--serif); font-size: 22px; color: var(--paper); }
+.b-group { font-size: 15px; font-weight: 700; color: var(--paper); margin: 22px 0 10px; }
+.b-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.b-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; background: rgba(0,0,0,.18); border: 1px solid var(--zone-line); border-radius: 10px; padding: 10px; }
+.b-row.has { border-color: var(--brass); }
+.b-info b { color: var(--paper); }
+.b-info .meta { color: var(--muted); font-size: 12px; display: block; margin: 2px 0 4px; }
+.b-info p { margin: 0; font-size: 13px; color: var(--text); }
+.b-qty { display: flex; align-items: center; gap: 8px; }
+.b-qty b { font-family: var(--serif); font-size: 20px; width: 1.2em; text-align: center; color: var(--paper); }
+.b-qty button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--brass); background: transparent; color: var(--paper); font-size: 18px; line-height: 1; }
+.b-qty button:disabled { opacity: .35; cursor: not-allowed; }
+.series { font-size: 11px; color: var(--brass-2); border: 1px solid var(--brass); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+
 @media (max-width: 900px) {
   :root { --cw: 56px; --ch: 80px; --sw: 24px; --sh: 34px; }
   #table { grid-template-columns: 1fr; height: auto; }
@@ -224,6 +241,7 @@ button.pk, button.gc { padding: 0; }
   .pk b { font-size: 16px; } .pk i { font-size: 14px; }
   .slot-label { min-width: 0; }
   .zrow { gap: 8px; } .zones { gap: 8px; }
+  .b-grid { grid-template-columns: 1fr; }
   .brand small, #status { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -244,7 +262,7 @@ button.pk, button.gc { padding: 0; }
 
 <main id="menu">
   <h1 class="menu-title">新卡牌遊戲</h1>
-  <p class="menu-sub">撲克牌填滿血量槽就贏。測試版，規則還在調整。</p>
+  <p class="menu-sub">命牌填滿血量槽就贏。測試版，規則還在調整。</p>
   <div class="menu-track" aria-hidden="true" id="menuTrack"></div>
 
   <section class="menu-group">
@@ -260,6 +278,16 @@ button.pk, button.gc { padding: 0; }
       <button id="btnJoin" class="btn">加入房間</button>
     </div>
     <p class="note">開房間後把代碼或邀請連結傳給朋友，兩人在不同電腦上對戰。線上對戰用房主的規則設定。</p>
+  </section>
+
+  <section class="menu-group">
+    <h2>牌組</h2>
+    <div class="form">
+      <label for="deckMe">你的牌組</label><select id="deckMe" class="field"></select>
+      <label for="deckAI">AI 的牌組</label><select id="deckAI" class="field"></select>
+    </div>
+    <div class="row" style="margin-top:12px"><button id="btnBuilder" class="btn">編輯自訂牌組</button></div>
+    <p class="note">預設牌組：標準、守城、餘燼、實驗。線上對戰時雙方各用自己選的牌組。</p>
   </section>
 
   <section class="menu-group">
@@ -281,16 +309,37 @@ button.pk, button.gc { padding: 0; }
     <details class="rules">
       <summary>規則重點</summary>
       <ul>
-        <li>自己的回合開始時，血量槽裡的撲克牌張數 ≥ HP 就贏。HP 由後手抽的牌決定（7–13）。</li>
-        <li>撲克手牌可以放進血量槽；槽是公開的，對手可以拿去當素材或代價。</li>
-        <li>額外牌組有 15 張遊戲卡，只有你看得到。湊齊條件就能召喚怪獸，或取得魔法、陷阱。</li>
-        <li>素材壓在怪獸下方，不算 HP；代價直接放進自己的槽。</li>
-        <li>怪獸攻擊時比牌值，大的贏。對手沒有怪獸時可以直接攻擊，移除對手槽裡 1 張牌。</li>
-        <li>發亮的卡代表現在能用。點一次選取或行動，同一張再點一次看詳細資料。</li>
+        <li>自己的回合開始時，血量槽裡的命牌張數 ≥ HP 就贏。HP 由後手抽的血量牌決定（7–13）。</li>
+        <li>命牌手牌可以放進血量槽。槽是公開的，對手每回合可以拿 1 張去湊條件。</li>
+        <li>額外牌組有 15 張術卡（同名最多 3 張），只有你看得到。湊齊條件就能召喚怪獸，或取得魔法、陷阱。</li>
+        <li>條件可以用：自己的手牌（命牌、術卡）、自己場上的怪獸、對手血量槽的命牌。對子、順子這類牌型只能用有花色牌值的卡（命牌、怪獸）。</li>
+        <li>素材壓在卡的下方，不算 HP。代價付掉後，命牌進自己的槽，術卡進墓地。</li>
+        <li>手牌上限：命牌 6 張、術卡 3 張。回合結束時超過的部分，命牌進槽、術卡送墓地。</li>
+        <li>每回合一次：從墓地召喚怪獸，或把魔陷加入手牌，要付那張卡的條件（卡片另外寫明的除外）。</li>
+        <li>怪獸攻擊時比牌值，大的贏。對手沒有怪獸時可以直接攻擊，移除對手槽裡 1 張命牌。</li>
+        <li>發亮的卡代表現在能用。點一次選取或行動，同一張卡再點一次看詳細資料。</li>
         <li>額外牌組發亮時點開，選要召喚的卡，再到盤面上點發亮的牌支付條件。</li>
       </ul>
     </details>
   </section>
+</main>
+
+<main id="builder" class="hidden">
+  <h1 class="menu-title" style="font-size:30px">自訂牌組</h1>
+  <p class="menu-sub">從卡池挑 15 張，同名最多 3 張。</p>
+  <div class="row">
+    <label for="bBase" style="color:var(--muted);font-size:14px">從這個牌組開始</label>
+    <select id="bBase" class="field"></select>
+    <button id="bLoad" class="btn">載入</button>
+    <button id="bClear" class="btn">清空</button>
+  </div>
+  <div class="b-bar">
+    <b id="bCount">0 / 15</b><span id="bMsg" class="note" style="margin:0"></span>
+    <span style="flex:1"></span>
+    <button id="bBack" class="btn">返回選單</button>
+    <button id="bSave" class="btn primary">儲存</button>
+  </div>
+  <div id="bList"></div>
 </main>
 
 <section id="table" class="hidden">
@@ -324,25 +373,28 @@ button.pk, button.gc { padding: 0; }
     isUnifiedPlanSupported:${this.isUnifiedPlanSupported()}`}constructor(){this.isIOS="undefined"!=typeof navigator&&["iPad","iPhone","iPod"].includes(navigator.platform),this.supportedBrowsers=["firefox","chrome","safari"],this.minFirefoxVersion=59,this.minChromeVersion=72,this.minSafariVersion=605}},ew=e=>!e||/^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/.test(e),eE=()=>Math.random().toString(36).slice(2),eD={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:["turn:eu-0.turn.peerjs.com:3478","turn:us-0.turn.peerjs.com:3478"],username:"peerjs",credential:"peerjsp"}],sdpSemantics:"unified-plan"},ex=new class extends n{noop(){}blobToArrayBuffer(e,t){let n=new FileReader;return n.onload=function(e){e.target&&t(e.target.result)},n.readAsArrayBuffer(e),n}binaryStringToArrayBuffer(e){let t=new Uint8Array(e.length);for(let n=0;n<e.length;n++)t[n]=255&e.charCodeAt(n);return t.buffer}isSecure(){return"https:"===location.protocol}constructor(...e){super(...e),this.CLOUD_HOST="0.peerjs.com",this.CLOUD_PORT=443,this.chunkedBrowsers={Chrome:1,chrome:1},this.defaultConfig=eD,this.browser=eP.getBrowser(),this.browserVersion=eP.getVersion(),this.pack=o,this.unpack=i,this.supports=function(){let e;let t={browser:eP.isBrowserSupported(),webRTC:eP.isWebRTCSupported(),audioVideo:!1,data:!1,binaryBlob:!1,reliable:!1};if(!t.webRTC)return t;try{let n;e=new RTCPeerConnection(eD),t.audioVideo=!0;try{n=e.createDataChannel("_PEERJSTEST",{ordered:!0}),t.data=!0,t.reliable=!!n.ordered;try{n.binaryType="blob",t.binaryBlob=!eP.isIOS}catch(e){}}catch(e){}finally{n&&n.close()}}catch(e){}finally{e&&e.close()}return t}(),this.validateId=ew,this.randomToken=eE}};(_=P||(P={}))[_.Disabled=0]="Disabled",_[_.Errors=1]="Errors",_[_.Warnings=2]="Warnings",_[_.All=3]="All";var eI=new class{get logLevel(){return this._logLevel}set logLevel(e){this._logLevel=e}log(...e){this._logLevel>=3&&this._print(3,...e)}warn(...e){this._logLevel>=2&&this._print(2,...e)}error(...e){this._logLevel>=1&&this._print(1,...e)}setLogFunction(e){this._print=e}_print(e,...t){let n=["PeerJS: ",...t];for(let e in n)n[e]instanceof Error&&(n[e]="("+n[e].name+") "+n[e].message);e>=3?console.log(...n):e>=2?console.warn("WARNING",...n):e>=1&&console.error("ERROR",...n)}constructor(){this._logLevel=0}},eM={},eO=Object.prototype.hasOwnProperty,ej="~";function eL(){}function eA(e,t,n){this.fn=e,this.context=t,this.once=n||!1}function eB(e,t,n,r,i){if("function"!=typeof n)throw TypeError("The listener must be a function");var o=new eA(n,r||e,i),s=ej?ej+t:t;return e._events[s]?e._events[s].fn?e._events[s]=[e._events[s],o]:e._events[s].push(o):(e._events[s]=o,e._eventsCount++),e}function eF(e,t){0==--e._eventsCount?e._events=new eL:delete e._events[t]}function eU(){this._events=new eL,this._eventsCount=0}Object.create&&(eL.prototype=Object.create(null),new eL().__proto__||(ej=!1)),eU.prototype.eventNames=function(){var e,t,n=[];if(0===this._eventsCount)return n;for(t in e=this._events)eO.call(e,t)&&n.push(ej?t.slice(1):t);return Object.getOwnPropertySymbols?n.concat(Object.getOwnPropertySymbols(e)):n},eU.prototype.listeners=function(e){var t=ej?ej+e:e,n=this._events[t];if(!n)return[];if(n.fn)return[n.fn];for(var r=0,i=n.length,o=Array(i);r<i;r++)o[r]=n[r].fn;return o},eU.prototype.listenerCount=function(e){var t=ej?ej+e:e,n=this._events[t];return n?n.fn?1:n.length:0},eU.prototype.emit=function(e,t,n,r,i,o){var s=ej?ej+e:e;if(!this._events[s])return!1;var a,c,l=this._events[s],p=arguments.length;if(l.fn){switch(l.once&&this.removeListener(e,l.fn,void 0,!0),p){case 1:return l.fn.call(l.context),!0;case 2:return l.fn.call(l.context,t),!0;case 3:return l.fn.call(l.context,t,n),!0;case 4:return l.fn.call(l.context,t,n,r),!0;case 5:return l.fn.call(l.context,t,n,r,i),!0;case 6:return l.fn.call(l.context,t,n,r,i,o),!0}for(c=1,a=Array(p-1);c<p;c++)a[c-1]=arguments[c];l.fn.apply(l.context,a)}else{var d,h=l.length;for(c=0;c<h;c++)switch(l[c].once&&this.removeListener(e,l[c].fn,void 0,!0),p){case 1:l[c].fn.call(l[c].context);break;case 2:l[c].fn.call(l[c].context,t);break;case 3:l[c].fn.call(l[c].context,t,n);break;case 4:l[c].fn.call(l[c].context,t,n,r);break;default:if(!a)for(d=1,a=Array(p-1);d<p;d++)a[d-1]=arguments[d];l[c].fn.apply(l[c].context,a)}}return!0},eU.prototype.on=function(e,t,n){return eB(this,e,t,n,!1)},eU.prototype.once=function(e,t,n){return eB(this,e,t,n,!0)},eU.prototype.removeListener=function(e,t,n,r){var i=ej?ej+e:e;if(!this._events[i])return this;if(!t)return eF(this,i),this;var o=this._events[i];if(o.fn)o.fn!==t||r&&!o.once||n&&o.context!==n||eF(this,i);else{for(var s=0,a=[],c=o.length;s<c;s++)(o[s].fn!==t||r&&!o[s].once||n&&o[s].context!==n)&&a.push(o[s]);a.length?this._events[i]=1===a.length?a[0]:a:eF(this,i)}return this},eU.prototype.removeAllListeners=function(e){var t;return e?(t=ej?ej+e:e,this._events[t]&&eF(this,t)):(this._events=new eL,this._eventsCount=0),this},eU.prototype.off=eU.prototype.removeListener,eU.prototype.addListener=eU.prototype.on,eU.prefixed=ej,eU.EventEmitter=eU,eM=eU,(C=w||(w={})).Data="data",C.Media="media",(b=E||(E={})).BrowserIncompatible="browser-incompatible",b.Disconnected="disconnected",b.InvalidID="invalid-id",b.InvalidKey="invalid-key",b.Network="network",b.PeerUnavailable="peer-unavailable",b.SslUnavailable="ssl-unavailable",b.ServerError="server-error",b.SocketError="socket-error",b.SocketClosed="socket-closed",b.UnavailableID="unavailable-id",b.WebRTC="webrtc",(v=D||(D={})).NegotiationFailed="negotiation-failed",v.ConnectionClosed="connection-closed",(k=x||(x={})).NotOpenYet="not-open-yet",k.MessageToBig="message-too-big",(T=I||(I={})).Binary="binary",T.BinaryUTF8="binary-utf8",T.JSON="json",T.None="raw",(S=M||(M={})).Message="message",S.Disconnected="disconnected",S.Error="error",S.Close="close",(R=O||(O={})).Heartbeat="HEARTBEAT",R.Candidate="CANDIDATE",R.Offer="OFFER",R.Answer="ANSWER",R.Open="OPEN",R.Error="ERROR",R.IdTaken="ID-TAKEN",R.InvalidKey="INVALID-KEY",R.Leave="LEAVE",R.Expire="EXPIRE";var ez={};ez=JSON.parse('{"name":"peerjs","version":"1.5.4","keywords":["peerjs","webrtc","p2p","rtc"],"description":"PeerJS client","homepage":"https://peerjs.com","bugs":{"url":"https://github.com/peers/peerjs/issues"},"repository":{"type":"git","url":"https://github.com/peers/peerjs"},"license":"MIT","contributors":["Michelle Bu <michelle@michellebu.com>","afrokick <devbyru@gmail.com>","ericz <really.ez@gmail.com>","Jairo <kidandcat@gmail.com>","Jonas Gloning <34194370+jonasgloning@users.noreply.github.com>","Jairo Caro-Accino Viciana <jairo@galax.be>","Carlos Caballero <carlos.caballero.gonzalez@gmail.com>","hc <hheennrryy@gmail.com>","Muhammad Asif <capripio@gmail.com>","PrashoonB <prashoonbhattacharjee@gmail.com>","Harsh Bardhan Mishra <47351025+HarshCasper@users.noreply.github.com>","akotynski <aleksanderkotbury@gmail.com>","lmb <i@lmb.io>","Jairooo <jairocaro@msn.com>","Moritz Stückler <moritz.stueckler@gmail.com>","Simon <crydotsnakegithub@gmail.com>","Denis Lukov <denismassters@gmail.com>","Philipp Hancke <fippo@andyet.net>","Hans Oksendahl <hansoksendahl@gmail.com>","Jess <jessachandler@gmail.com>","khankuan <khankuan@gmail.com>","DUODVK <kurmanov.work@gmail.com>","XiZhao <kwang1imsa@gmail.com>","Matthias Lohr <matthias@lohr.me>","=frank tree <=frnktrb@googlemail.com>","Andre Eckardt <aeckardt@outlook.com>","Chris Cowan <agentme49@gmail.com>","Alex Chuev <alex@chuev.com>","alxnull <alxnull@e.mail.de>","Yemel Jardi <angel.jardi@gmail.com>","Ben Parnell <benjaminparnell.94@gmail.com>","Benny Lichtner <bennlich@gmail.com>","fresheneesz <bitetrudpublic@gmail.com>","bob.barstead@exaptive.com <bob.barstead@exaptive.com>","chandika <chandika@gmail.com>","emersion <contact@emersion.fr>","Christopher Van <cvan@users.noreply.github.com>","eddieherm <edhermoso@gmail.com>","Eduardo Pinho <enet4mikeenet@gmail.com>","Evandro Zanatta <ezanatta@tray.net.br>","Gardner Bickford <gardner@users.noreply.github.com>","Gian Luca <gianluca.cecchi@cynny.com>","PatrickJS <github@gdi2290.com>","jonnyf <github@jonathanfoss.co.uk>","Hizkia Felix <hizkifw@gmail.com>","Hristo Oskov <hristo.oskov@gmail.com>","Isaac Madwed <i.madwed@gmail.com>","Ilya Konanykhin <ilya.konanykhin@gmail.com>","jasonbarry <jasbarry@me.com>","Jonathan Burke <jonathan.burke.1311@googlemail.com>","Josh Hamit <josh.hamit@gmail.com>","Jordan Austin <jrax86@gmail.com>","Joel Wetzell <jwetzell@yahoo.com>","xizhao <kevin.wang@cloudera.com>","Alberto Torres <kungfoobar@gmail.com>","Jonathan Mayol <mayoljonathan@gmail.com>","Jefferson Felix <me@jsfelix.dev>","Rolf Erik Lekang <me@rolflekang.com>","Kevin Mai-Husan Chia <mhchia@users.noreply.github.com>","Pepijn de Vos <pepijndevos@gmail.com>","JooYoung <qkdlql@naver.com>","Tobias Speicher <rootcommander@gmail.com>","Steve Blaurock <sblaurock@gmail.com>","Kyrylo Shegeda <shegeda@ualberta.ca>","Diwank Singh Tomer <singh@diwank.name>","Sören Balko <Soeren.Balko@gmail.com>","Arpit Solanki <solankiarpit1997@gmail.com>","Yuki Ito <yuki@gnnk.net>","Artur Zayats <zag2art@gmail.com>"],"funding":{"type":"opencollective","url":"https://opencollective.com/peer"},"collective":{"type":"opencollective","url":"https://opencollective.com/peer"},"files":["dist/*"],"sideEffects":["lib/global.ts","lib/supports.ts"],"main":"dist/bundler.cjs","module":"dist/bundler.mjs","browser-minified":"dist/peerjs.min.js","browser-unminified":"dist/peerjs.js","browser-minified-msgpack":"dist/serializer.msgpack.mjs","types":"dist/types.d.ts","engines":{"node":">= 14"},"targets":{"types":{"source":"lib/exports.ts"},"main":{"source":"lib/exports.ts","sourceMap":{"inlineSources":true}},"module":{"source":"lib/exports.ts","includeNodeModules":["eventemitter3"],"sourceMap":{"inlineSources":true}},"browser-minified":{"context":"browser","outputFormat":"global","optimize":true,"engines":{"browsers":"chrome >= 83, edge >= 83, firefox >= 80, safari >= 15"},"source":"lib/global.ts"},"browser-unminified":{"context":"browser","outputFormat":"global","optimize":false,"engines":{"browsers":"chrome >= 83, edge >= 83, firefox >= 80, safari >= 15"},"source":"lib/global.ts"},"browser-minified-msgpack":{"context":"browser","outputFormat":"esmodule","isLibrary":true,"optimize":true,"engines":{"browsers":"chrome >= 83, edge >= 83, firefox >= 102, safari >= 15"},"source":"lib/dataconnection/StreamConnection/MsgPack.ts"}},"scripts":{"contributors":"git-authors-cli --print=false && prettier --write package.json && git add package.json package-lock.json && git commit -m \\"chore(contributors): update and sort contributors list\\"","check":"tsc --noEmit && tsc -p e2e/tsconfig.json --noEmit","watch":"parcel watch","build":"rm -rf dist && parcel build","prepublishOnly":"npm run build","test":"jest","test:watch":"jest --watch","coverage":"jest --coverage --collectCoverageFrom=\\"./lib/**\\"","format":"prettier --write .","format:check":"prettier --check .","semantic-release":"semantic-release","e2e":"wdio run e2e/wdio.local.conf.ts","e2e:bstack":"wdio run e2e/wdio.bstack.conf.ts"},"devDependencies":{"@parcel/config-default":"^2.9.3","@parcel/packager-ts":"^2.9.3","@parcel/transformer-typescript-tsc":"^2.9.3","@parcel/transformer-typescript-types":"^2.9.3","@semantic-release/changelog":"^6.0.1","@semantic-release/git":"^10.0.1","@swc/core":"^1.3.27","@swc/jest":"^0.2.24","@types/jasmine":"^4.3.4","@wdio/browserstack-service":"^8.11.2","@wdio/cli":"^8.11.2","@wdio/globals":"^8.11.2","@wdio/jasmine-framework":"^8.11.2","@wdio/local-runner":"^8.11.2","@wdio/spec-reporter":"^8.11.2","@wdio/types":"^8.10.4","http-server":"^14.1.1","jest":"^29.3.1","jest-environment-jsdom":"^29.3.1","mock-socket":"^9.0.0","parcel":"^2.9.3","prettier":"^3.0.0","semantic-release":"^21.0.0","ts-node":"^10.9.1","typescript":"^5.0.0","wdio-geckodriver-service":"^5.0.1"},"dependencies":{"@msgpack/msgpack":"^2.8.0","eventemitter3":"^4.0.7","peerjs-js-binarypack":"^2.1.0","webrtc-adapter":"^9.0.0"},"alias":{"process":false,"buffer":false}}');class eN extends eM.EventEmitter{start(e,t){this._id=e;let n=`${this._baseUrl}&id=${e}&token=${t}`;!this._socket&&this._disconnected&&(this._socket=new WebSocket(n+"&version="+ez.version),this._disconnected=!1,this._socket.onmessage=e=>{let t;try{t=JSON.parse(e.data),eI.log("Server message received:",t)}catch(t){eI.log("Invalid server message",e.data);return}this.emit(M.Message,t)},this._socket.onclose=e=>{this._disconnected||(eI.log("Socket closed.",e),this._cleanup(),this._disconnected=!0,this.emit(M.Disconnected))},this._socket.onopen=()=>{this._disconnected||(this._sendQueuedMessages(),eI.log("Socket open"),this._scheduleHeartbeat())})}_scheduleHeartbeat(){this._wsPingTimer=setTimeout(()=>{this._sendHeartbeat()},this.pingInterval)}_sendHeartbeat(){if(!this._wsOpen()){eI.log("Cannot send heartbeat, because socket closed");return}let e=JSON.stringify({type:O.Heartbeat});this._socket.send(e),this._scheduleHeartbeat()}_wsOpen(){return!!this._socket&&1===this._socket.readyState}_sendQueuedMessages(){let e=[...this._messagesQueue];for(let t of(this._messagesQueue=[],e))this.send(t)}send(e){if(this._disconnected)return;if(!this._id){this._messagesQueue.push(e);return}if(!e.type){this.emit(M.Error,"Invalid message");return}if(!this._wsOpen())return;let t=JSON.stringify(e);this._socket.send(t)}close(){this._disconnected||(this._cleanup(),this._disconnected=!0)}_cleanup(){this._socket&&(this._socket.onopen=this._socket.onmessage=this._socket.onclose=null,this._socket.close(),this._socket=void 0),clearTimeout(this._wsPingTimer)}constructor(e,t,n,r,i,o=5e3){super(),this.pingInterval=o,this._disconnected=!0,this._messagesQueue=[],this._baseUrl=(e?"wss://":"ws://")+t+":"+n+r+"peerjs?key="+i}}class e${startConnection(e){let t=this._startPeerConnection();if(this.connection.peerConnection=t,this.connection.type===w.Media&&e._stream&&this._addTracksToConnection(e._stream,t),e.originator){let n=this.connection,r={ordered:!!e.reliable},i=t.createDataChannel(n.label,r);n._initializeDataChannel(i),this._makeOffer()}else this.handleSDP("OFFER",e.sdp)}_startPeerConnection(){eI.log("Creating RTCPeerConnection.");let e=new RTCPeerConnection(this.connection.provider.options.config);return this._setupListeners(e),e}_setupListeners(e){let t=this.connection.peer,n=this.connection.connectionId,r=this.connection.type,i=this.connection.provider;eI.log("Listening for ICE candidates."),e.onicecandidate=e=>{e.candidate&&e.candidate.candidate&&(eI.log(`Received ICE candidates for ${t}:`,e.candidate),i.socket.send({type:O.Candidate,payload:{candidate:e.candidate,type:r,connectionId:n},dst:t}))},e.oniceconnectionstatechange=()=>{switch(e.iceConnectionState){case"failed":eI.log("iceConnectionState is failed, closing connections to "+t),this.connection.emitError(D.NegotiationFailed,"Negotiation of connection to "+t+" failed."),this.connection.close();break;case"closed":eI.log("iceConnectionState is closed, closing connections to "+t),this.connection.emitError(D.ConnectionClosed,"Connection to "+t+" closed."),this.connection.close();break;case"disconnected":eI.log("iceConnectionState changed to disconnected on the connection with "+t);break;case"completed":e.onicecandidate=()=>{}}this.connection.emit("iceStateChanged",e.iceConnectionState)},eI.log("Listening for data channel"),e.ondatachannel=e=>{eI.log("Received data channel");let r=e.channel;i.getConnection(t,n)._initializeDataChannel(r)},eI.log("Listening for remote stream"),e.ontrack=e=>{eI.log("Received remote stream");let r=e.streams[0],o=i.getConnection(t,n);o.type===w.Media&&this._addStreamToMediaConnection(r,o)}}cleanup(){eI.log("Cleaning up PeerConnection to "+this.connection.peer);let e=this.connection.peerConnection;if(!e)return;this.connection.peerConnection=null,e.onicecandidate=e.oniceconnectionstatechange=e.ondatachannel=e.ontrack=()=>{};let t="closed"!==e.signalingState,n=!1,r=this.connection.dataChannel;r&&(n=!!r.readyState&&"closed"!==r.readyState),(t||n)&&e.close()}async _makeOffer(){let e=this.connection.peerConnection,t=this.connection.provider;try{let n=await e.createOffer(this.connection.options.constraints);eI.log("Created offer."),this.connection.options.sdpTransform&&"function"==typeof this.connection.options.sdpTransform&&(n.sdp=this.connection.options.sdpTransform(n.sdp)||n.sdp);try{await e.setLocalDescription(n),eI.log("Set localDescription:",n,`for:${this.connection.peer}`);let r={sdp:n,type:this.connection.type,connectionId:this.connection.connectionId,metadata:this.connection.metadata};if(this.connection.type===w.Data){let e=this.connection;r={...r,label:e.label,reliable:e.reliable,serialization:e.serialization}}t.socket.send({type:O.Offer,payload:r,dst:this.connection.peer})}catch(e){"OperationError: Failed to set local offer sdp: Called in wrong state: kHaveRemoteOffer"!=e&&(t.emitError(E.WebRTC,e),eI.log("Failed to setLocalDescription, ",e))}}catch(e){t.emitError(E.WebRTC,e),eI.log("Failed to createOffer, ",e)}}async _makeAnswer(){let e=this.connection.peerConnection,t=this.connection.provider;try{let n=await e.createAnswer();eI.log("Created answer."),this.connection.options.sdpTransform&&"function"==typeof this.connection.options.sdpTransform&&(n.sdp=this.connection.options.sdpTransform(n.sdp)||n.sdp);try{await e.setLocalDescription(n),eI.log("Set localDescription:",n,`for:${this.connection.peer}`),t.socket.send({type:O.Answer,payload:{sdp:n,type:this.connection.type,connectionId:this.connection.connectionId},dst:this.connection.peer})}catch(e){t.emitError(E.WebRTC,e),eI.log("Failed to setLocalDescription, ",e)}}catch(e){t.emitError(E.WebRTC,e),eI.log("Failed to create answer, ",e)}}async handleSDP(e,t){t=new RTCSessionDescription(t);let n=this.connection.peerConnection,r=this.connection.provider;eI.log("Setting remote description",t);try{await n.setRemoteDescription(t),eI.log(`Set remoteDescription:${e} for:${this.connection.peer}`),"OFFER"===e&&await this._makeAnswer()}catch(e){r.emitError(E.WebRTC,e),eI.log("Failed to setRemoteDescription, ",e)}}async handleCandidate(e){eI.log("handleCandidate:",e);try{await this.connection.peerConnection.addIceCandidate(e),eI.log(`Added ICE candidate for:${this.connection.peer}`)}catch(e){this.connection.provider.emitError(E.WebRTC,e),eI.log("Failed to handleCandidate, ",e)}}_addTracksToConnection(e,t){if(eI.log(`add tracks from stream ${e.id} to peer connection`),!t.addTrack)return eI.error("Your browser does't support RTCPeerConnection#addTrack. Ignored.");e.getTracks().forEach(n=>{t.addTrack(n,e)})}_addStreamToMediaConnection(e,t){eI.log(`add stream ${e.id} to media connection ${t.connectionId}`),t.addStream(e)}constructor(e){this.connection=e}}class eJ extends eM.EventEmitter{emitError(e,t){eI.error("Error:",t),this.emit("error",new eV(`${e}`,t))}}class eV extends Error{constructor(e,t){"string"==typeof t?super(t):(super(),Object.assign(this,t)),this.type=e}}class eG extends eJ{get open(){return this._open}constructor(e,t,n){super(),this.peer=e,this.provider=t,this.options=n,this._open=!1,this.metadata=n.metadata}}class eW extends eG{get type(){return w.Media}get localStream(){return this._localStream}get remoteStream(){return this._remoteStream}_initializeDataChannel(e){this.dataChannel=e,this.dataChannel.onopen=()=>{eI.log(`DC#${this.connectionId} dc connection success`),this.emit("willCloseOnRemote")},this.dataChannel.onclose=()=>{eI.log(`DC#${this.connectionId} dc closed for:`,this.peer),this.close()}}addStream(e){eI.log("Receiving stream",e),this._remoteStream=e,super.emit("stream",e)}handleMessage(e){let t=e.type,n=e.payload;switch(e.type){case O.Answer:this._negotiator.handleSDP(t,n.sdp),this._open=!0;break;case O.Candidate:this._negotiator.handleCandidate(n.candidate);break;default:eI.warn(`Unrecognized message type:${t} from peer:${this.peer}`)}}answer(e,t={}){if(this._localStream){eI.warn("Local stream already exists on this MediaConnection. Are you answering a call twice?");return}for(let n of(this._localStream=e,t&&t.sdpTransform&&(this.options.sdpTransform=t.sdpTransform),this._negotiator.startConnection({...this.options._payload,_stream:e}),this.provider._getMessages(this.connectionId)))this.handleMessage(n);this._open=!0}close(){this._negotiator&&(this._negotiator.cleanup(),this._negotiator=null),this._localStream=null,this._remoteStream=null,this.provider&&(this.provider._removeConnection(this),this.provider=null),this.options&&this.options._stream&&(this.options._stream=null),this.open&&(this._open=!1,super.emit("close"))}constructor(e,t,n){super(e,t,n),this._localStream=this.options._stream,this.connectionId=this.options.connectionId||eW.ID_PREFIX+ex.randomToken(),this._negotiator=new e$(this),this._localStream&&this._negotiator.startConnection({_stream:this._localStream,originator:!0})}}eW.ID_PREFIX="mc_";class eH{_buildRequest(e){let t=this._options.secure?"https":"http",{host:n,port:r,path:i,key:o}=this._options,s=new URL(`${t}://${n}:${r}${i}${o}/${e}`);return s.searchParams.set("ts",`${Date.now()}${Math.random()}`),s.searchParams.set("version",ez.version),fetch(s.href,{referrerPolicy:this._options.referrerPolicy})}async retrieveId(){try{let e=await this._buildRequest("id");if(200!==e.status)throw Error(`Error. Status:${e.status}`);return e.text()}catch(t){eI.error("Error retrieving ID",t);let e="";throw"/"===this._options.path&&this._options.host!==ex.CLOUD_HOST&&(e=" If you passed in a `path` to your self-hosted PeerServer, you'll also need to pass in that same path when creating a new Peer."),Error("Could not get an ID from the server."+e)}}async listAllPeers(){try{let e=await this._buildRequest("peers");if(200!==e.status){if(401===e.status){let e="";throw e=this._options.host===ex.CLOUD_HOST?"It looks like you're using the cloud server. You can email team@peerjs.com to enable peer listing for your API key.":"You need to enable `allow_discovery` on your self-hosted PeerServer to use this feature.",Error("It doesn't look like you have permission to list peers IDs. "+e)}throw Error(`Error. Status:${e.status}`)}return e.json()}catch(e){throw eI.error("Error retrieving list peers",e),Error("Could not get list peers from the server."+e)}}constructor(e){this._options=e}}class eY extends eG{get type(){return w.Data}_initializeDataChannel(e){this.dataChannel=e,this.dataChannel.onopen=()=>{eI.log(`DC#${this.connectionId} dc connection success`),this._open=!0,this.emit("open")},this.dataChannel.onmessage=e=>{eI.log(`DC#${this.connectionId} dc onmessage:`,e.data)},this.dataChannel.onclose=()=>{eI.log(`DC#${this.connectionId} dc closed for:`,this.peer),this.close()}}close(e){if(e?.flush){this.send({__peerData:{type:"close"}});return}this._negotiator&&(this._negotiator.cleanup(),this._negotiator=null),this.provider&&(this.provider._removeConnection(this),this.provider=null),this.dataChannel&&(this.dataChannel.onopen=null,this.dataChannel.onmessage=null,this.dataChannel.onclose=null,this.dataChannel=null),this.open&&(this._open=!1,super.emit("close"))}send(e,t=!1){if(!this.open){this.emitError(x.NotOpenYet,"Connection is not open. You should listen for the `open` event before sending messages.");return}return this._send(e,t)}async handleMessage(e){let t=e.payload;switch(e.type){case O.Answer:await this._negotiator.handleSDP(e.type,t.sdp);break;case O.Candidate:await this._negotiator.handleCandidate(t.candidate);break;default:eI.warn("Unrecognized message type:",e.type,"from peer:",this.peer)}}constructor(e,t,n){super(e,t,n),this.connectionId=this.options.connectionId||eY.ID_PREFIX+eE(),this.label=this.options.label||this.connectionId,this.reliable=!!this.options.reliable,this._negotiator=new e$(this),this._negotiator.startConnection(this.options._payload||{originator:!0,reliable:this.reliable})}}eY.ID_PREFIX="dc_",eY.MAX_BUFFERED_AMOUNT=8388608;class eK extends eY{get bufferSize(){return this._bufferSize}_initializeDataChannel(e){super._initializeDataChannel(e),this.dataChannel.binaryType="arraybuffer",this.dataChannel.addEventListener("message",e=>this._handleDataMessage(e))}_bufferedSend(e){(this._buffering||!this._trySend(e))&&(this._buffer.push(e),this._bufferSize=this._buffer.length)}_trySend(e){if(!this.open)return!1;if(this.dataChannel.bufferedAmount>eY.MAX_BUFFERED_AMOUNT)return this._buffering=!0,setTimeout(()=>{this._buffering=!1,this._tryBuffer()},50),!1;try{this.dataChannel.send(e)}catch(e){return eI.error(`DC#:${this.connectionId} Error when sending:`,e),this._buffering=!0,this.close(),!1}return!0}_tryBuffer(){if(!this.open||0===this._buffer.length)return;let e=this._buffer[0];this._trySend(e)&&(this._buffer.shift(),this._bufferSize=this._buffer.length,this._tryBuffer())}close(e){if(e?.flush){this.send({__peerData:{type:"close"}});return}this._buffer=[],this._bufferSize=0,super.close()}constructor(...e){super(...e),this._buffer=[],this._bufferSize=0,this._buffering=!1}}class eX extends eK{close(e){super.close(e),this._chunkedData={}}_handleDataMessage({data:e}){let t=i(e),n=t.__peerData;if(n){if("close"===n.type){this.close();return}this._handleChunk(t);return}this.emit("data",t)}_handleChunk(e){let t=e.__peerData,n=this._chunkedData[t]||{data:[],count:0,total:e.total};if(n.data[e.n]=new Uint8Array(e.data),n.count++,this._chunkedData[t]=n,n.total===n.count){delete this._chunkedData[t];let e=function(e){let t=0;for(let n of e)t+=n.byteLength;let n=new Uint8Array(t),r=0;for(let t of e)n.set(t,r),r+=t.byteLength;return n}(n.data);this._handleDataMessage({data:e})}}_send(e,t){let n=o(e);if(n instanceof Promise)return this._send_blob(n);if(!t&&n.byteLength>this.chunker.chunkedMTU){this._sendChunks(n);return}this._bufferedSend(n)}async _send_blob(e){let t=await e;if(t.byteLength>this.chunker.chunkedMTU){this._sendChunks(t);return}this._bufferedSend(t)}_sendChunks(e){let t=this.chunker.chunk(e);for(let e of(eI.log(`DC#${this.connectionId} Try to send ${t.length} chunks...`),t))this.send(e,!0)}constructor(e,t,r){super(e,t,r),this.chunker=new n,this.serialization=I.Binary,this._chunkedData={}}}class eq extends eK{_handleDataMessage({data:e}){super.emit("data",e)}_send(e,t){this._bufferedSend(e)}constructor(...e){super(...e),this.serialization=I.None}}class eQ extends eK{_handleDataMessage({data:e}){let t=this.parse(this.decoder.decode(e)),n=t.__peerData;if(n&&"close"===n.type){this.close();return}this.emit("data",t)}_send(e,t){let n=this.encoder.encode(this.stringify(e));if(n.byteLength>=ex.chunkedMTU){this.emitError(x.MessageToBig,"Message too big for JSON channel");return}this._bufferedSend(n)}constructor(...e){super(...e),this.serialization=I.JSON,this.encoder=new TextEncoder,this.decoder=new TextDecoder,this.stringify=JSON.stringify,this.parse=JSON.parse}}class eZ extends eJ{get id(){return this._id}get options(){return this._options}get open(){return this._open}get socket(){return this._socket}get connections(){let e=Object.create(null);for(let[t,n]of this._connections)e[t]=n;return e}get destroyed(){return this._destroyed}get disconnected(){return this._disconnected}_createServerConnection(){let e=new eN(this._options.secure,this._options.host,this._options.port,this._options.path,this._options.key,this._options.pingInterval);return e.on(M.Message,e=>{this._handleMessage(e)}),e.on(M.Error,e=>{this._abort(E.SocketError,e)}),e.on(M.Disconnected,()=>{this.disconnected||(this.emitError(E.Network,"Lost connection to server."),this.disconnect())}),e.on(M.Close,()=>{this.disconnected||this._abort(E.SocketClosed,"Underlying socket is already closed.")}),e}_initialize(e){this._id=e,this.socket.start(e,this._options.token)}_handleMessage(e){let t=e.type,n=e.payload,r=e.src;switch(t){case O.Open:this._lastServerId=this.id,this._open=!0,this.emit("open",this.id);break;case O.Error:this._abort(E.ServerError,n.msg);break;case O.IdTaken:this._abort(E.UnavailableID,`ID "${this.id}" is taken`);break;case O.InvalidKey:this._abort(E.InvalidKey,`API KEY "${this._options.key}" is invalid`);break;case O.Leave:eI.log(`Received leave message from ${r}`),this._cleanupPeer(r),this._connections.delete(r);break;case O.Expire:this.emitError(E.PeerUnavailable,`Could not connect to peer ${r}`);break;case O.Offer:{let e=n.connectionId,t=this.getConnection(r,e);if(t&&(t.close(),eI.warn(`Offer received for existing Connection ID:${e}`)),n.type===w.Media){let i=new eW(r,this,{connectionId:e,_payload:n,metadata:n.metadata});t=i,this._addConnection(r,t),this.emit("call",i)}else if(n.type===w.Data){let i=new this._serializers[n.serialization](r,this,{connectionId:e,_payload:n,metadata:n.metadata,label:n.label,serialization:n.serialization,reliable:n.reliable});t=i,this._addConnection(r,t),this.emit("connection",i)}else{eI.warn(`Received malformed connection type:${n.type}`);return}for(let n of this._getMessages(e))t.handleMessage(n);break}default:{if(!n){eI.warn(`You received a malformed message from ${r} of type ${t}`);return}let i=n.connectionId,o=this.getConnection(r,i);o&&o.peerConnection?o.handleMessage(e):i?this._storeMessage(i,e):eI.warn("You received an unrecognized message:",e)}}}_storeMessage(e,t){this._lostMessages.has(e)||this._lostMessages.set(e,[]),this._lostMessages.get(e).push(t)}_getMessages(e){let t=this._lostMessages.get(e);return t?(this._lostMessages.delete(e),t):[]}connect(e,t={}){if(t={serialization:"default",...t},this.disconnected){eI.warn("You cannot connect to a new Peer because you called .disconnect() on this Peer and ended your connection with the server. You can create a new Peer to reconnect, or call reconnect on this peer if you believe its ID to still be available."),this.emitError(E.Disconnected,"Cannot connect to new Peer after disconnecting from server.");return}let n=new this._serializers[t.serialization](e,this,t);return this._addConnection(e,n),n}call(e,t,n={}){if(this.disconnected){eI.warn("You cannot connect to a new Peer because you called .disconnect() on this Peer and ended your connection with the server. You can create a new Peer to reconnect."),this.emitError(E.Disconnected,"Cannot connect to new Peer after disconnecting from server.");return}if(!t){eI.error("To call a peer, you must provide a stream from your browser's `getUserMedia`.");return}let r=new eW(e,this,{...n,_stream:t});return this._addConnection(e,r),r}_addConnection(e,t){eI.log(`add connection ${t.type}:${t.connectionId} to peerId:${e}`),this._connections.has(e)||this._connections.set(e,[]),this._connections.get(e).push(t)}_removeConnection(e){let t=this._connections.get(e.peer);if(t){let n=t.indexOf(e);-1!==n&&t.splice(n,1)}this._lostMessages.delete(e.connectionId)}getConnection(e,t){let n=this._connections.get(e);if(!n)return null;for(let e of n)if(e.connectionId===t)return e;return null}_delayedAbort(e,t){setTimeout(()=>{this._abort(e,t)},0)}_abort(e,t){eI.error("Aborting!"),this.emitError(e,t),this._lastServerId?this.disconnect():this.destroy()}destroy(){this.destroyed||(eI.log(`Destroy peer with ID:${this.id}`),this.disconnect(),this._cleanup(),this._destroyed=!0,this.emit("close"))}_cleanup(){for(let e of this._connections.keys())this._cleanupPeer(e),this._connections.delete(e);this.socket.removeAllListeners()}_cleanupPeer(e){let t=this._connections.get(e);if(t)for(let e of t)e.close()}disconnect(){if(this.disconnected)return;let e=this.id;eI.log(`Disconnect peer with ID:${e}`),this._disconnected=!0,this._open=!1,this.socket.close(),this._lastServerId=e,this._id=null,this.emit("disconnected",e)}reconnect(){if(this.disconnected&&!this.destroyed)eI.log(`Attempting reconnection to server with ID ${this._lastServerId}`),this._disconnected=!1,this._initialize(this._lastServerId);else if(this.destroyed)throw Error("This peer cannot reconnect to the server. It has already been destroyed.");else if(this.disconnected||this.open)throw Error(`Peer ${this.id} cannot reconnect because it is not disconnected from the server!`);else eI.error("In a hurry? We're still trying to make the initial connection!")}listAllPeers(e=e=>{}){this._api.listAllPeers().then(t=>e(t)).catch(e=>this._abort(E.ServerError,e))}constructor(e,t){let n;if(super(),this._serializers={raw:eq,json:eQ,binary:eX,"binary-utf8":eX,default:eX},this._id=null,this._lastServerId=null,this._destroyed=!1,this._disconnected=!1,this._open=!1,this._connections=new Map,this._lostMessages=new Map,e&&e.constructor==Object?t=e:e&&(n=e.toString()),t={debug:0,host:ex.CLOUD_HOST,port:ex.CLOUD_PORT,path:"/",key:eZ.DEFAULT_KEY,token:ex.randomToken(),config:ex.defaultConfig,referrerPolicy:"strict-origin-when-cross-origin",serializers:{},...t},this._options=t,this._serializers={...this._serializers,...this.options.serializers},"/"===this._options.host&&(this._options.host=window.location.hostname),this._options.path&&("/"!==this._options.path[0]&&(this._options.path="/"+this._options.path),"/"!==this._options.path[this._options.path.length-1]&&(this._options.path+="/")),void 0===this._options.secure&&this._options.host!==ex.CLOUD_HOST?this._options.secure=ex.isSecure():this._options.host==ex.CLOUD_HOST&&(this._options.secure=!0),this._options.logFunction&&eI.setLogFunction(this._options.logFunction),eI.logLevel=this._options.debug||0,this._api=new eH(t),this._socket=this._createServerConnection(),!ex.supports.audioVideo&&!ex.supports.data){this._delayedAbort(E.BrowserIncompatible,"The current browser does not support WebRTC");return}if(n&&!ex.validateId(n)){this._delayedAbort(E.InvalidID,`ID "${n}" is invalid`);return}n?this._initialize(n):this._api.retrieveId().then(e=>this._initialize(e)).catch(e=>this._abort(E.ServerError,e))}}eZ.DEFAULT_KEY="peerjs",window.peerjs={Peer:eZ,util:ex},window.Peer=eZ})();
 // peerjs.min.js.map
 </script>
-<script>/* 新卡牌遊戲 — 規則引擎（JavaScript 版）
- * 與 card_game.py 規則相同。所有隨機都來自固定種子，所以兩台電腦用同一個種子、
- * 依序套用同樣的選擇，就會算出完全相同的盤面（線上對戰靠這點同步）。
+<script>/* 新卡牌遊戲 — 規則引擎 v0.4
+ * 名稱：撲克牌叫「命牌」，遊戲卡叫「術卡」，合稱「卡」。
+ * 所有隨機都來自固定種子：兩台電腦用同一個種子、依序套用同樣的選擇，就會算出完全相同的盤面。
  */
 (function (root) {
 'use strict';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 const DEFAULT_CFG = {
-  HAND_LIMIT: 6,            // 撲克手牌上限；超過的部分回合結束放進自己的槽
-  USE_LIMIT: 1,             // 每回合可使用對方槽撲克牌的張數（代價＋素材＋效果合計）
+  HAND_LIMIT: 6,            // 命牌手牌上限；超過的部分回合結束放進自己的槽
+  GHAND_LIMIT: 3,           // 術卡手牌上限；超過的部分回合結束送墓地
+  USE_LIMIT: 1,             // 每回合可使用對方槽命牌的張數
   ZONES: 3,                 // 怪獸區、魔陷區各幾格
   NO_ATTACK_TURNS: 1,       // 開局前幾個回合不能攻擊（1 = 只有先手第一回合）
   P1_DRAWS_TURN1: false,    // 先手第一回合是否抽牌
   TIE_DESTROYS_BOTH: false, // 戰鬥平手是否同歸於盡
-  GY_PER_TURN: 1,           // 每回合可從墓地召喚／取回幾張
+  GY_PER_TURN: 1,           // 每回合可從墓地召喚／取得幾張
   MAX_TURNS: 150,
-  STACKED_MATERIALS: 'deck' // 怪獸被當成素材時它原本的素材：deck／transfer／slot
+  STACKED_MATERIALS: 'deck', // 場上怪獸被當成條件時它原本的素材：deck（命牌回牌堆、術卡進墓地）／transfer／slot
+  DECK_SIZE: 15,
+  MAX_COPIES: 3
 };
 const CFG = Object.assign({}, DEFAULT_CFG);
 function setConfig(c) {
@@ -370,19 +422,20 @@ class RNG {
   }
 }
 
-// ─────────── 卡片 ───────────
+// ─────────── 卡 ───────────
 const SUITS = ['♠', '♥', '♦', '♣'];
 const RED = new Set(['♥', '♦']);
 const RANK_NAME = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
-const TOTAL_POKER = 53;          // 52 張 − 血量牌 + 2 張 joker
+const TOTAL_POKER = 53;          // 52 張 − 血量牌 + 2 張鬼牌
 const rankStr = r => RANK_NAME[r] || String(r);
+const KIND_NAME = { monster: '怪獸', spell: '魔法', trap: '陷阱' };
 
-class Poker {
+class Poker {   // 命牌；rank 0 是鬼牌
   constructor(uid, rank, suit) { this.uid = uid; this.rank = rank; this.suit = suit || null; this.isPoker = true; }
   get joker() { return this.rank === 0; }
-  toString() { return this.joker ? 'JK' : this.suit + rankStr(this.rank); }
+  toString() { return this.joker ? '鬼' : this.suit + rankStr(this.rank); }
 }
-class GCard {
+class GCard {   // 術卡
   constructor(uid, d, owner) { this.uid = uid; this.d = d; this.owner = owner; this.isPoker = false; }
   get name() { return this.d.name; }
   toString() {
@@ -396,89 +449,167 @@ function remove(arr, x) {
   arr.splice(i, 1);
 }
 
-function C(name, kind, text, req, mode, suit, rank, extra) {
-  return Object.assign({ name, kind, text, req, mode: mode || 'cost', suit: suit || null, rank: rank || 0,
-    setReq: null, quickSummon: false, countMaterials: false }, extra || {});
+/* 術卡定義
+ * req     一般條件 [種類, 張數]：any／same_rank／suit／color／red／straight／monster_plus／monsters
+ * mode    material（壓在下方）／cost（命牌進自己的槽、術卡進墓地）／gift（放進對方的槽）
+ * from    std（手牌＋場上怪獸＋對方槽）／hand（只能手牌）／hand_poker（只能命牌手牌）
+ * gyReq   墓地條件 { n, series, seriesMin, to: extra（回額外牌組）| under（壓在下方當素材） }，只能用墓地的怪獸
+ * setReq  陷阱蓋放時要壓在下方的素材（只能用手牌）
+ */
+function C(name, kind, text, o) {
+  return Object.assign({ name, kind, text, req: null, mode: 'cost', from: 'std', gyReq: null, suit: null, rank: 0,
+    series: null, setReq: null, quickSummon: false, onlyQuick: false, extraOnly: false, countMaterials: false, cantAttack: false, taunt: false,
+    immune: false, trig: null }, o || {});
 }
-// 範例卡池（雙方相同）。條件格式見 reqDesc。
+const M = (suit, rank, o) => Object.assign({ suit, rank }, o);
 const POOL = [
-  C('小兵', 'monster', '沒有效果。', ['any', 1], 'cost', '♣', 2),
-  C('庫房看守', 'monster', '1 回合 1 次：拔除 1 個素材，抽 1 張。', ['any', 2], 'material', '♣', 4),
-  C('伏兵', 'monster', '也可以在對方回合召喚。', ['color', 2], 'material', '♥', 5, { quickSummon: true }),
-  C('雙子哨兵', 'monster', '1 回合 1 次：對方使用你槽中的牌時，拔除 1 個素材，那次召喚或發動無效。', ['same_rank', 2], 'material', '♦', 6),
-  C('斥候', 'monster', '召喚成功時抽 1 張。', ['suit', 2], 'cost', '♥', 7),
-  C('同花盜賊', 'monster', '1 回合 1 次：拔除 1 個素材，將對方槽 1 張撲克牌移到你的槽（計入使用上限）。', ['suit', 3], 'material', '♠', 9),
-  C('紅心騎士', 'monster', '戰鬥破壞對方怪獸時，那隻怪獸的撲克素材改放進你的槽。', ['monster_plus', 1], 'material', '♥', 10),
-  C('巨像', 'monster', '沒有效果。', ['same_rank', 3], 'material', '♦', 12),
-  C('順流之王', 'monster', '你的回合開始結算時，這張卡的撲克素材也算進 HP。', ['straight', 5], 'material', '♠', 13, { countMaterials: true }),
-  C('號令', 'spell', '抽 2 張。', ['same_rank', 2], 'cost'),
-  C('掠奪令', 'spell', '破壞對方場上 1 張卡。', ['suit', 2], 'cost'),
-  C('重整', 'spell', '從自己的槽選 1 張撲克牌加入手牌，再從手牌選 1 張放進槽。', ['any', 1], 'cost'),
-  C('斷罪', 'trap', '對方召喚怪獸時：那次召喚無效。', ['same_rank', 2], 'cost'),
-  C('反掠', 'trap', '對方使用你槽中的牌時：將對方槽 1 張撲克牌移到你的槽。', ['any', 1], 'cost'),
-  C('截流', 'trap', '對方怪獸拔除素材時：那張素材改放進你的槽。', null, 'cost', null, 0, { setReq: ['any', 1] })
+  // 第一批
+  C('小兵', 'monster', '沒有效果。', M('♣', 2, { req: ['any', 1], mode: 'material' })),
+  C('庫房看守', 'monster', '1 回合 1 次：拔除 1 個素材，抽 1 張。', M('♣', 4, { req: ['any', 2], mode: 'material' })),
+  C('伏兵', 'monster', '也可以在對方回合召喚。', M('♥', 5, { req: ['color', 2], mode: 'material', quickSummon: 'any' })),
+  C('雙子哨兵', 'monster', '1 回合 1 次：對方使用你槽中的命牌時，拔除 1 個素材，那次召喚或發動無效。', M('♦', 6, { req: ['same_rank', 2], mode: 'material' })),
+  C('斥候', 'monster', '召喚成功時：抽 1 張。', M('♥', 7, { req: ['suit', 2], mode: 'cost', trig: { summoned: true } })),
+  C('同花盜賊', 'monster', '1 回合 1 次：拔除 1 個素材，將對方槽 1 張命牌移到你的槽（計入使用次數）。', M('♠', 9, { req: ['suit', 3], mode: 'material' })),
+  C('紅心騎士', 'monster', '戰鬥破壞對方怪獸時，那隻怪獸的命牌素材改放進你的槽。', M('♥', 10, { req: ['monster_plus', 1], mode: 'material' })),
+  C('巨像', 'monster', '沒有效果。', M('♦', 12, { req: ['same_rank', 3], mode: 'material' })),
+  C('順流之王', 'monster', '你的回合開始結算時，這張卡的命牌素材也算進 HP。', M('♠', 13, { req: ['straight', 5], mode: 'material', countMaterials: true })),
+  C('號令', 'spell', '抽 2 張。', { req: ['same_rank', 2] }),
+  C('掠奪令', 'spell', '破壞對方場上 1 張卡。', { req: ['suit', 2] }),
+  C('重整', 'spell', '從自己的槽選 1 張命牌加入手牌，再從命牌手牌選 1 張放進槽。', { req: ['any', 1] }),
+  C('斷罪', 'trap', '對方召喚怪獸時：那次召喚無效。', { req: ['same_rank', 2] }),
+  C('反掠', 'trap', '對方使用你槽中的命牌時：將對方槽 1 張命牌移到你的槽。', { req: ['any', 1] }),
+  C('截流', 'trap', '對方怪獸拔除素材時：那張素材改放進你的槽。', { setReq: ['any', 1] }),
+  // 第二批：防守
+  C('止戈', 'trap', '對方怪獸宣言攻擊時：那次攻擊無效，這回合對方不能再攻擊。', { req: ['any', 1] }),
+  C('封存', 'trap', '對方攻擊你的怪獸，或用效果要破壞它時：這回合那隻怪獸被破壞時，它的命牌素材改放進你的槽。', { req: ['any', 1] }),
+  C('城門守衛', 'monster', '不能攻擊。只要這張卡在場上，對方只能攻擊這張卡。召喚後到下個對方回合結束前，不會被戰鬥破壞。', M('♣', 11, { req: ['color', 3], mode: 'material', cantAttack: true, taunt: true, immune: true })),
+  C('替身', 'monster', '只能在對方宣言攻擊時，從額外牌組召喚（素材只能用手牌）。召喚後成為那次攻擊的對象。', M('♦', 8, { req: ['any', 1], mode: 'material', from: 'hand', quickSummon: 'attack', onlyQuick: true })),
+  // 墓地
+  C('亡骸巨兵', 'monster', '沒有效果。', M('♣', 12, { gyReq: { n: 2, to: 'extra' } })),
+  C('拾骨術士', 'monster', '1 回合 1 次：拔除 1 個術卡素材，抽 1 張。', M('♠', 8, { req: ['any', 1], mode: 'material', gyReq: { n: 1, to: 'under' } })),
+  C('輪迴', 'spell', '從墓地召喚 1 隻牌值 8 以下的怪獸，不用付條件，不算墓地的每回合一次。', { req: ['same_rank', 2] }),
+  // 術卡當條件
+  C('雙頭魔像', 'monster', '要被戰鬥破壞時，可以改成拔除 1 個術卡素材。', M('♦', 13, { req: ['monsters', 2], mode: 'material' })),
+  C('傳承', 'spell', '選自己場上 1 隻怪獸送墓地，從額外牌組召喚 1 隻牌值比它大 1～3 的怪獸，不用付條件。', { req: ['any', 1] }),
+  // 血量槽
+  C('回流', 'spell', '自己槽裡 2 張命牌洗回牌堆，抽 3 張。', { req: ['any', 1] }),
+  C('借道', 'spell', '本回合使用對方槽的次數 +2。', { req: ['any', 1], mode: 'gift', from: 'hand_poker' }),
+  C('壁壘', 'trap', '對方要拿走或移除你槽中的命牌時：到你下個回合開始前，對方總共只能再從你的槽拿走或移除 1 張（包含這一次）。', { req: ['same_rank', 2] }),
+  // 餘燼系列
+  C('餘燼小鬼', 'monster', '被破壞進墓地時：從額外牌組或墓地把 1 張「餘燼」魔陷加入手牌。', M('♥', 3, { req: ['any', 1], mode: 'material', series: '餘燼', trig: { destroyed: true } })),
+  C('餘燼騎士', 'monster', '攻擊時牌值 +2。', M('♥', 9, { req: ['red', 2], mode: 'material', series: '餘燼', gyReq: { n: 1, series: '餘燼', seriesMin: 1, to: 'under' } })),
+  C('餘燼重燃', 'spell', '從墓地召喚 1 隻「餘燼」怪獸，不用付條件，不算墓地的每回合一次。', { req: ['red', 2], series: '餘燼' }),
+  C('餘燼之王', 'monster', '只能從額外牌組召喚。召喚成功時：對方場上 1 隻怪獸回額外牌組（它的命牌素材洗回牌堆、術卡素材進墓地）。', M('♥', 13, { series: '餘燼', gyReq: { n: 3, series: '餘燼', seriesMin: 3, to: 'extra' }, trig: { summoned: true }, extraOnly: true }))
 ];
+const DEF = Object.fromEntries(POOL.map(d => [d.name, d]));
 
-// ─────────── 牌型條件 ───────────
-// any n｜same_rank n｜suit n｜color n｜straight n｜monster_plus n（場上 1 隻怪獸 + 任意 n 張）
-// joker 可當任意花色與牌值；場上怪獸當素材時算作它印的花色與牌值
+const PRESETS = {
+  '標準': ['小兵', '庫房看守', '伏兵', '雙子哨兵', '斥候', '同花盜賊', '紅心騎士', '巨像', '順流之王', '號令', '掠奪令', '重整', '斷罪', '反掠', '截流'],
+  '守城': ['城門守衛', '城門守衛', '替身', '替身', '止戈', '止戈', '止戈', '封存', '封存', '壁壘', '小兵', '庫房看守', '巨像', '紅心騎士', '斷罪'],
+  '餘燼': ['餘燼小鬼', '餘燼小鬼', '餘燼小鬼', '餘燼騎士', '餘燼騎士', '餘燼之王', '餘燼重燃', '餘燼重燃', '亡骸巨兵', '亡骸巨兵', '拾骨術士', '拾骨術士', '輪迴', '小兵', '斷罪'],
+  '實驗': ['雙頭魔像', '雙頭魔像', '傳承', '傳承', '回流', '借道', '借道', '同花盜賊', '同花盜賊', '斥候', '斥候', '伏兵', '伏兵', '掠奪令', '反掠']
+};
+function validateDeck(names) {
+  if (!Array.isArray(names)) return '牌組格式不對';
+  if (names.length !== CFG.DECK_SIZE) return `牌組要剛好 ${CFG.DECK_SIZE} 張，現在是 ${names.length} 張`;
+  const cnt = {};
+  for (const n of names) {
+    if (!DEF[n]) return `卡池裡沒有「${n}」`;
+    cnt[n] = (cnt[n] || 0) + 1;
+    if (cnt[n] > CFG.MAX_COPIES) return `「${n}」超過 ${CFG.MAX_COPIES} 張`;
+  }
+  return null;
+}
+
+// ─────────── 條件 ───────────
 const reqSize = r => r[1] + (r[0] === 'monster_plus' ? 1 : 0);
 function reqName(req) {
-  if (!req) return '無條件';
   const [k, n] = req;
   return {
     any: `任意 ${n} 張`, same_rank: n === 2 ? '對子' : n === 3 ? '三條' : `${n} 張同牌值`,
-    suit: `${n} 張同花色`, color: `${n} 張同色`, straight: `${n} 張順子`,
-    monster_plus: `場上 1 隻怪獸 + 任意 ${n} 張`
+    suit: `${n} 張同花色`, color: `${n} 張同色`, red: `${n} 張紅色`, straight: `${n} 張順子`,
+    monster_plus: `場上 1 隻怪獸 + 任意 ${n} 張`, monsters: `場上 ${n} 隻怪獸`
   }[k];
 }
-function reqDesc(req, mode) {
-  if (!req) return '無條件';
-  return (mode === 'material' ? '素材：' : '代價：') + reqName(req);
+function gyName(g) {
+  const ser = g.seriesMin ? (g.seriesMin === g.n ? `「${g.series}」` : '') : '';
+  const extra = g.seriesMin && g.seriesMin < g.n ? `（至少 ${g.seriesMin} 隻「${g.series}」）` : '';
+  return `墓地 ${g.n} 隻${ser}怪獸${g.to === 'extra' ? '回額外牌組' : ''}${extra}`;
 }
-function unit(x) {   // [牌值, 花色, 萬用, 怪獸]
+// 卡片條件的說明文字。which = main（召喚或取得）／set（蓋放）
+function condDesc(d, which = 'main') {
+  if (which === 'set') return d.setReq ? '素材：手牌' + reqName(d.setReq) : '無條件';
+  if (!d.req && !d.gyReq) return '無條件';
+  const parts = [];
+  if (d.req) {
+    let s = reqName(d.req);
+    if (d.from === 'hand') s = '手牌 ' + s.replace('任意 ', '');
+    if (d.mode === 'gift') return '條件：1 張命牌手牌放進對方的槽';
+    parts.push(s);
+  }
+  if (d.gyReq) parts.push(gyName(d.gyReq));
+  const head = d.gyReq && d.gyReq.to === 'extra' && !d.req ? '條件：' : d.mode === 'material' ? '素材：' : '代價：';
+  return head + parts.join(' ＋ ');
+}
+
+function unit(x) {   // [牌值, 花色, 萬用, 怪獸]；魔陷沒有花色牌值 → null
   if (x.isPoker) return x.joker ? [0, null, true, false] : [x.rank, x.suit, false, false];
-  return [x.d.rank, x.d.suit, false, true];
+  if (x.d.kind === 'monster') return [x.d.rank, x.d.suit, false, true];
+  return null;
 }
 function match(req, items) {
   const [kind, n] = req;
+  if (items.length !== reqSize(req)) return false;
   const us = items.map(unit);
-  if (us.length !== reqSize(req)) return false;
+  if (kind === 'any') return true;
+  if (kind === 'monster_plus') return us.some(u => u && u[3]);
+  if (us.some(u => !u)) return false;
+  if (kind === 'monsters') return us.every(u => u[3]);
   const fixed = us.filter(u => !u[2]);
   switch (kind) {
-    case 'any': return true;
     case 'same_rank': return new Set(fixed.map(u => u[0])).size <= 1;
     case 'suit': return new Set(fixed.map(u => u[1])).size <= 1;
     case 'color': return new Set(fixed.map(u => RED.has(u[1]))).size <= 1;
+    case 'red': return fixed.every(u => RED.has(u[1]));
     case 'straight': {
       const rs = fixed.map(u => u[0]);
       return new Set(rs).size === rs.length && (!rs.length || Math.max(...rs) - Math.min(...rs) <= n - 1);
     }
-    case 'monster_plus': return us.filter(u => u[3]).length === 1;
   }
   throw new Error(kind);
 }
-function feasible(req, own, opp, q) {   // 快速判斷能不能支付
-  if (!req) return true;
-  const [kind, n] = req;
+// 快速判斷一般條件付不付得起（引擎每個決策點都要算很多次）
+function stdFeasible(req, own, opp, q, needSet) {
+  if (!req) return !needSet;
+  const [kind, n] = req, size = reqSize(req);
   q = Math.min(q, opp.length);
-  const oj = own.filter(u => u[2]).length, pj = opp.filter(u => u[2]).length;
-  if (kind === 'any') return own.length + q >= n;
-  if (kind === 'monster_plus') return own.some(u => u[3]) && own.length - 1 + q >= n;
-  if (kind === 'same_rank' || kind === 'suit' || kind === 'color') {
+  const isField = c => !!needSet && needSet.has(c);
+  if (needSet && !own.some(isField)) return false;
+  if (kind === 'any') return own.length + q >= size;
+  if (kind === 'monster_plus') return own.some(c => !c.isPoker && c.d.kind === 'monster') && own.length + q >= size;
+  if (kind === 'monsters') return own.filter(c => !c.isPoker && c.d.kind === 'monster').length >= n;
+  const ownC = own.filter(c => unit(c)), oppC = opp.filter(c => unit(c));
+  const oj = ownC.filter(c => unit(c)[2]).length, pj = oppC.filter(c => unit(c)[2]).length;
+  if (kind === 'same_rank' || kind === 'suit' || kind === 'color' || kind === 'red') {
     const key = kind === 'same_rank' ? u => u[0] : kind === 'suit' ? u => u[1] : u => RED.has(u[1]);
-    const g = new Map(), og = new Map();
-    for (const u of own) if (!u[2]) g.set(key(u), (g.get(key(u)) || 0) + 1);
-    for (const u of opp) if (!u[2]) og.set(key(u), (og.get(key(u)) || 0) + 1);
-    let best = oj + Math.min(q, pj);
-    for (const k of new Set([...g.keys(), ...og.keys()]))
+    const g = new Map(), og = new Map(), gf = new Map();
+    for (const c of ownC) { const u = unit(c); if (u[2]) continue; const k = key(u); g.set(k, (g.get(k) || 0) + 1); if (isField(c)) gf.set(k, true); }
+    for (const c of oppC) { const u = unit(c); if (u[2]) continue; const k = key(u); og.set(k, (og.get(k) || 0) + 1); }
+    let keys = [...new Set([...g.keys(), ...og.keys()])];
+    if (kind === 'red') keys = [true];
+    let best = needSet ? -1 : oj + Math.min(q, pj);
+    for (const k of keys) {
+      if (needSet && !gf.get(k)) continue;
       best = Math.max(best, (g.get(k) || 0) + oj + Math.min(q, (og.get(k) || 0) + pj));
+    }
     return best >= n;
   }
   if (kind === 'straight') {
-    const ownR = new Set(own.filter(u => !u[2]).map(u => u[0]));
-    const oppR = new Set(opp.filter(u => !u[2]).map(u => u[0]));
+    const ownR = new Set(ownC.filter(c => !unit(c)[2]).map(c => unit(c)[0]));
+    const oppR = new Set(oppC.filter(c => !unit(c)[2]).map(c => unit(c)[0]));
+    const fieldR = needSet ? new Set(own.filter(isField).map(c => unit(c)[0])) : null;
     for (let s = 1; s <= 14 - n; s++) {
+      if (fieldR && ![...fieldR].some(r => r >= s && r < s + n)) continue;
       const missing = [];
       for (let r = s; r < s + n; r++) if (!ownR.has(r)) missing.push(r);
       const cover = missing.filter(r => oppR.has(r)).length + pj;
@@ -494,40 +625,52 @@ function* combos(arr, k, start = 0, acc = []) {
     acc.push(arr[i]); yield* combos(arr, k, i + 1, acc); acc.pop();
   }
 }
-const sig = c => (c.isPoker ? 'p' + c.rank + (c.suit || '') : 'm' + c.uid);
-// 已選 chosen 之後，用剩下的 own／opp（opp 最多再用 quota 張）能不能湊成條件
-function payCompletable(req, chosen, own, opp, quota) {
+const sig = c => (c.isPoker ? 'p' + c.rank + (c.suit || '') : c.d.kind === 'monster' ? 'm' + c.uid : 'x');
+function dedupe(cards, cap = 1) {
+  const m = new Map(), out = [];
+  for (const c of cards) { const k = sig(c), n = m.get(k) || 0; if (n < cap) { m.set(k, n + 1); out.push(c); } }
+  return out;
+}
+// 精確判斷：已選 chosen 之後，用剩下的 own／opp（opp 最多再用 quota 張）能不能湊成一般條件（畫面發光用）
+function payCompletable(req, chosen, own, opp, quota, needSet) {
   if (!req) return chosen.length === 0;
   const size = reqSize(req), need = size - chosen.length;
   if (need < 0 || quota < 0) return false;
-  if (need === 0) return match(req, chosen);
-  const ded = (arr, cap) => {
-    const m = new Map(), out = [];
-    for (const c of arr) { const k = sig(c), n = m.get(k) || 0; if (n < cap) { m.set(k, n + 1); out.push(c); } }
-    return out;
-  };
-  const O = ded(own, need), Q = ded(opp, Math.min(need, quota));
+  const ok = sel => match(req, sel) && (!needSet || sel.some(c => needSet.has(c)));
+  if (need === 0) return ok(chosen);
+  const O = dedupe(own, need), Q = dedupe(opp, Math.min(need, quota));
   for (let k = Math.min(quota, need, Q.length); k >= 0; k--) {
     if (O.length < need - k) continue;
-    for (const oc of combos(Q, k)) for (const hc of combos(O, need - k)) if (match(req, chosen.concat(hc, oc))) return true;
+    for (const oc of combos(Q, k)) for (const hc of combos(O, need - k)) if (ok(chosen.concat(hc, oc))) return true;
   }
   return false;
 }
-function dedupe(cards) {   // 同花色同牌值只留一張（列舉支付方式用）
-  const seen = new Set(), out = [];
-  for (const c of cards) { const k = c.rank + '|' + c.suit; if (!seen.has(k)) { seen.add(k); out.push(c); } }
-  return out;
+// 墓地條件
+function gyCompletable(g, chosen, rest) {
+  if (!g) return chosen.length === 0;
+  if (chosen.length > g.n) return false;
+  const need = g.n - chosen.length;
+  if (rest.length < need) return false;
+  if (g.seriesMin) {
+    const lack = g.seriesMin - chosen.filter(c => c.d.series === g.series).length;
+    if (lack > need) return false;
+    if (lack > 0 && rest.filter(c => c.d.series === g.series).length < lack) return false;
+  }
+  return true;
 }
+const gyMatch = (g, chosen) => (g ? chosen.length === g.n && gyCompletable(g, chosen, []) : chosen.length === 0);
 
 // ─────────── 盤面 ───────────
 class PState {
   constructor(pid) {
     this.pid = pid; this.hand = []; this.ghand = []; this.slot = []; this.extra = []; this.gy = [];
     this.mons = Array(CFG.ZONES).fill(null); this.sts = Array(CFG.ZONES).fill(null);
-    this.usedOpp = 0; this.gyUsed = 0;
+    this.usedOpp = 0; this.bonusOpp = 0; this.gyUsed = 0; this.noAttackTurn = -1; this.guard = null;
   }
 }
-class FieldMon { constructor(card, materials) { this.card = card; this.materials = materials; this.attacked = false; this.used = new Set(); } }
+class FieldMon {
+  constructor(card, materials) { this.card = card; this.materials = materials; this.attacked = false; this.used = new Set(); this.immuneUntil = -1; this.sealTurn = -1; }
+}
 class FieldST { constructor(card, materials, setTurn) { this.card = card; this.materials = materials; this.setTurn = setTurn; } }
 class Link {
   constructor(kind, pid, card, data) {
@@ -536,7 +679,7 @@ class Link {
   }
   touches(q) { return this.pid !== q && (this.oppTaken.length > 0 || this.oppTarget !== null); }
 }
-const LINK_KIND = { summon: '召喚', acquire: '取得', effect: '效果', spell: '魔法', trap: '陷阱', attack: '攻擊' };
+const LINK_KIND = { summon: '召喚', acquire: '取得', effect: '效果', spell: '魔法', trap: '陷阱', attack: '攻擊', trigger: '效果' };
 
 // ─────────── 遊戲 ───────────
 class Game {
@@ -548,7 +691,9 @@ class Game {
     this.rng = new RNG(this.seed);
     this.onEvent = opts.onEvent || (() => {});
     this.mode = opts.mode || 'local';
-    this.stats = {}; this.logs = []; this.record = []; this.uidc = 0;
+    this.decks = (opts.decks || [PRESETS['標準'], PRESETS['標準']]).map(d => d.slice());
+    for (const d of this.decks) { const err = validateDeck(d); if (err) throw new Error(err); }
+    this.stats = {}; this.logs = []; this.record = []; this.uidc = 0; this.triggers = [];
     const deck = [];
     for (const s of SUITS) for (let r = 1; r <= 13; r++) deck.push(new Poker(++this.uidc, r, s));
     this.rng.shuffle(deck);
@@ -557,7 +702,7 @@ class Game {
     this.deck = deck;
     this.P = [new PState(0), new PState(1)];
     for (const ps of this.P) {
-      ps.extra = POOL.map(d => new GCard(++this.uidc, d, ps.pid));
+      ps.extra = this.decks[ps.pid].map(n => new GCard(++this.uidc, DEF[n], ps.pid));
       for (let i = 0; i < 4; i++) ps.hand.push(this.deck.pop());
       ps.hand.push(new Poker(++this.uidc, 0, null));
     }
@@ -577,17 +722,30 @@ class Game {
     for (const fm of ps.mons) if (fm && fm.card.d.countMaterials) n += fm.materials.filter(m => m.isPoker).length;
     return n;
   }
-  quota(pid) { return CFG.USE_LIMIT - this.P[pid].usedOpp; }
+  quota(pid) {
+    let q = CFG.USE_LIMIT + this.P[pid].bonusOpp - this.P[pid].usedOpp;
+    const g = this.P[1 - pid].guard;
+    if (g) q = Math.min(q, g.left);
+    return q;
+  }
   draw(pid, n = 1, why = '') {
-    for (let i = 0; i < n; i++) {
-      if (!this.deck.length) { this.log(`牌堆沒牌了，${why}抽不到`); return; }
+    let k = 0;
+    for (; k < n; k++) {
+      if (!this.deck.length) { this.log(`牌堆沒牌了，${why}抽不到`); break; }
       this.P[pid].hand.push(this.deck.pop());
     }
-    if (why) this.log(`${this.nm(pid)} 因 ${why} 抽 ${n} 張`);
+    if (why && k) this.log(`${this.nm(pid)} 因 ${why} 抽 ${k} 張`);
   }
   toDeck(c) { this.deck.splice(this.rng.int(this.deck.length + 1), 0, c); }
   returnMaterial(m) { if (m.isPoker) this.toDeck(m); else this.P[m.owner].gy.push(m); }
   freeZone(zones) { const i = zones.indexOf(null); return i < 0 ? null : i; }
+  takeFromSlot(owner, c) {   // 對方從 owner 的槽拿走或移除一張（壁壘會限制）
+    const g = this.P[owner].guard;
+    if (g && g.left <= 0) return false;
+    remove(this.P[owner].slot, c);
+    if (g) g.left--;
+    return true;
+  }
 
   async decide(p, kind, payload) {
     const v = await this.agents[p].decide(kind, payload, this, p);
@@ -596,83 +754,121 @@ class Game {
   }
 
   // ── 支付 ──
-  ownSources(p, mode, allowMon = true) {
-    const me = this.P[p]; const s = me.hand.slice();
-    if (mode === 'material' && allowMon) for (const fm of me.mons) if (fm) s.push(fm.card);
-    return s;
+  paySpec(p, card, purpose) {   // purpose：summon／acquire／set
+    const d = card.d;
+    if (purpose === 'set') return { card, purpose, req: d.setReq, mode: 'material', from: 'hand', gyReq: null, needSet: null };
+    const spec = { card, purpose, req: d.req, mode: d.mode, from: d.from, gyReq: d.gyReq, needSet: null };
+    if (purpose === 'summon' && this.freeZone(this.P[p].mons) === null) {   // 怪獸區滿了：條件裡一定要用到場上的怪獸
+      spec.needSet = new Set(this.P[p].mons.filter(Boolean).map(f => f.card));
+    }
+    return spec;
   }
-  canPay(p, req, mode, allowOpp = true, allowMon = true) {
-    if (!req) return true;
-    const own = this.ownSources(p, mode, allowMon).map(unit);
-    const opp = allowOpp ? dedupe(this.P[1 - p].slot).map(unit) : [];
-    return feasible(req, own, opp, allowOpp ? this.quota(p) : 0);
+  sources(p, spec) {
+    const me = this.P[p], from = spec.from || 'std';
+    let own = me.hand.slice();
+    if (from !== 'hand_poker') own = own.concat(me.ghand.filter(c => c !== spec.card));
+    if (from === 'std') for (const fm of me.mons) if (fm) own.push(fm.card);
+    const std = from === 'std';
+    return { own, opp: std ? this.P[1 - p].slot.slice() : [], quota: std ? Math.max(0, this.quota(p)) : 0 };
   }
-  payments(p, req, mode, allowOpp = true, allowMon = true, cap = 40) {
-    if (!req) return [{ own: [], opp: [] }];
-    const own = this.ownSources(p, mode, allowMon);
-    const opp = allowOpp ? dedupe(this.P[1 - p].slot) : [];
-    const q = allowOpp ? Math.max(0, this.quota(p)) : 0;
-    const size = reqSize(req); const out = [];
-    for (let k = Math.min(q, size, opp.length); k >= 0; k--) {     // 先列使用對方槽的方案
-      for (const oc of combos(opp, k)) {
-        for (const hc of combos(own, size - k)) {
-          if (match(req, hc.concat(oc))) { out.push({ own: hc, opp: oc }); if (out.length >= cap) return out; }
+  gyCands(p, spec) { return this.P[p].gy.filter(c => c !== spec.card && c.d.kind === 'monster'); }
+  canPay(p, spec) {
+    const s = this.sources(p, spec);
+    if (!stdFeasible(spec.req, s.own, s.opp, s.quota, spec.needSet)) return false;
+    if (!spec.gyReq) return true;
+    return gyCompletable(spec.gyReq, [], this.gyCands(p, spec));
+  }
+  pickGy(p, spec) {   // AI 用：墓地條件挑牌值低的，系列卡先湊夠
+    const g = spec.gyReq; if (!g) return [];
+    const cands = this.gyCands(p, spec).slice().sort((a, b) => a.d.rank - b.d.rank);
+    const out = [];
+    if (g.seriesMin) for (const c of cands) if (out.length < g.seriesMin && c.d.series === g.series) out.push(c);
+    for (const c of cands) if (out.length < g.n && !out.includes(c)) out.push(c);
+    return gyMatch(g, out) ? out : null;
+  }
+  payments(p, spec, cap = 40) {
+    const gy = this.pickGy(p, spec);
+    if (gy === null) return [];
+    if (!spec.req) return spec.needSet ? [] : [{ own: [], opp: [], gy }];
+    const s = this.sources(p, spec);
+    const own = dedupe(s.own, reqSize(spec.req)), opp = dedupe(s.opp, 1);
+    const size = reqSize(spec.req), out = [];
+    for (let k = Math.min(s.quota, size, opp.length); k >= 0; k--) {
+      for (const oc of combos(opp, k)) for (const hc of combos(own, size - k)) {
+        const sel = hc.concat(oc);
+        if (match(spec.req, sel) && (!spec.needSet || hc.some(c => spec.needSet.has(c)))) {
+          out.push({ own: hc, opp: oc, gy });
+          if (out.length >= cap) return out;
         }
       }
     }
     return out;
   }
-  payCandidates(p, mode, allowOpp = true, allowMon = true) {
-    return { own: this.ownSources(p, mode, allowMon), opp: allowOpp ? this.P[1 - p].slot.slice() : [],
-      quota: allowOpp ? Math.max(0, this.quota(p)) : 0 };
-  }
-  async askPay(p, card, req, mode, pays, allowOpp = true, allowMon = true) {
-    const v = await this.decide(p, 'pay', { card, req, mode, pays, allowOpp, allowMon });
+  async askPay(p, spec, pays) {
+    const v = await this.decide(p, 'pay', { card: spec.card, spec, pays });
     if (v === null || v === undefined) return null;
-    const cand = this.payCandidates(p, mode, allowOpp, allowMon);
+    const s = this.sources(p, spec), gyc = this.gyCands(p, spec);
     const pick = (pool, uids) => (uids || []).map(u => {
       const c = pool.find(x => x.uid === u);
       if (!c) throw new Error('不合法的支付：找不到指定的卡');
       return c;
     });
-    const pay = { own: pick(cand.own, v.own), opp: pick(cand.opp, v.opp) };
-    const all = pay.own.concat(pay.opp);
+    const pay = { own: pick(s.own, v.own), opp: pick(s.opp, v.opp), gy: pick(gyc, v.gy) };
+    const all = [...pay.own, ...pay.opp, ...pay.gy];
     if (new Set(all.map(c => c.uid)).size !== all.length) throw new Error('不合法的支付：同一張卡選了兩次');
-    if (req ? !match(req, all) : all.length) throw new Error('不合法的支付：不符合條件');
-    if (pay.opp.length > cand.quota) throw new Error('不合法的支付：超過使用對方槽的上限');
+    const std = pay.own.concat(pay.opp);
+    if (spec.req ? !match(spec.req, std) : std.length) throw new Error('不合法的支付：不符合條件');
+    if (spec.needSet && !pay.own.some(c => spec.needSet.has(c))) throw new Error('不合法的支付：怪獸區已滿，要用到場上的怪獸');
+    if (pay.opp.length > s.quota) throw new Error('不合法的支付：超過使用對方槽的次數');
+    if (!gyMatch(spec.gyReq, pay.gy)) throw new Error('不合法的支付：墓地條件不符');
     return pay;
   }
-  takePayment(p, pay, mode) {
-    const me = this.P[p], op = this.P[1 - p];
-    const mats = [], costs = [], taken = [];
+  takePayment(p, pay, spec) {
+    const me = this.P[p], op = this.P[1 - p], mode = spec.mode;
+    const mats = [], toSlot = [], toGy = [], gift = [], taken = [];
     for (const c of pay.own) {
-      if (!c.isPoker) {                                   // 場上怪獸當素材
+      if (!c.isPoker) {
         const z = me.mons.findIndex(fm => fm && fm.card === c);
-        const fm = me.mons[z]; me.mons[z] = null; mats.push(c);
-        for (const m of fm.materials) {                   // 它原本的素材怎麼處理
-          if (CFG.STACKED_MATERIALS === 'transfer') mats.push(m);
-          else if (CFG.STACKED_MATERIALS === 'slot') (m.isPoker ? me.slot : this.P[m.owner].gy).push(m);
-          else this.returnMaterial(m);
-        }
+        if (z >= 0) {                                   // 場上的怪獸
+          const fm = me.mons[z]; me.mons[z] = null;
+          for (const m of fm.materials) {
+            if (CFG.STACKED_MATERIALS === 'transfer' && mode === 'material') mats.push(m);
+            else if (CFG.STACKED_MATERIALS === 'slot') (m.isPoker ? me.slot : this.P[m.owner].gy).push(m);
+            else this.returnMaterial(m);
+          }
+        } else remove(me.ghand, c);                     // 手上的術卡
+        if (mode === 'material') mats.push(c); else { this.P[c.owner].gy.push(c); toGy.push(c); }
       } else {
-        remove(me.hand, c); (mode === 'material' ? mats : costs).push(c);
+        remove(me.hand, c);
+        if (mode === 'material') mats.push(c);
+        else if (mode === 'gift') { op.slot.push(c); gift.push(c); }
+        else toSlot.push(c);
       }
     }
     for (const c of pay.opp) {
-      remove(op.slot, c); me.usedOpp++; taken.push(c); (mode === 'material' ? mats : costs).push(c);
+      this.takeFromSlot(1 - p, c); me.usedOpp++; taken.push(c);
+      (mode === 'material' ? mats : toSlot).push(c);
     }
-    me.slot.push(...costs);
-    return { mats, costs, taken };
+    me.slot.push(...toSlot);
+    const toExtra = [];
+    for (const c of pay.gy) {
+      remove(me.gy, c);
+      if (spec.gyReq.to === 'extra') { this.P[c.owner].extra.push(c); toExtra.push(c); } else mats.push(c);
+    }
+    return { mats, toSlot, toGy, gift, toExtra, taken };
   }
-  payDesc(pay) {
+  payText(r) {
     const parts = [];
-    if (pay.own.length) parts.push(fmt(pay.own));
-    if (pay.opp.length) parts.push('對方槽：' + fmt(pay.opp));
-    return parts.join(' ＋ ') || '（不需支付）';
+    if (r.mats.length) parts.push(`素材 ${fmt(r.mats)}`);
+    if (r.toSlot.length) parts.push(`代價 ${fmt(r.toSlot)} 進槽`);
+    if (r.toGy.length) parts.push(`${fmt(r.toGy)} 進墓地`);
+    if (r.gift.length) parts.push(`${fmt(r.gift)} 放進對方的槽`);
+    if (r.toExtra.length) parts.push(`墓地的 ${fmt(r.toExtra)} 回額外牌組`);
+    return (parts.join('，') || '無條件') + (r.taken.length ? `（使用對方槽 ${fmt(r.taken)}）` : '');
   }
 
-  // ── 素材 ──
-  async detach(p, holder, m) {   // 拔除：撲克進自己的槽（可能被截流），遊戲卡進墓地
+  // ── 素材與場上 ──
+  async detach(p, holder, m) {   // 拔除：命牌進自己的槽（可能被截流），術卡進墓地
     remove(holder.materials, m);
     if (!m.isPoker) { this.P[m.owner].gy.push(m); return; }
     const q = 1 - p, oq = this.P[q];
@@ -695,65 +891,115 @@ class Game {
     const obj = kind === 'mon' ? ps.mons[z] : ps.sts[z];
     if (kind === 'mon') ps.mons[z] = null; else ps.sts[z] = null;
     ps.gy.push(obj.card);
-    const stolen = [];
+    const sealed = kind === 'mon' && obj.sealTurn === this.turn;
+    const moved = [];
     for (const m of obj.materials) {
-      if (stealTo !== null && m.isPoker) { this.P[stealTo].slot.push(m); stolen.push(m); } else this.returnMaterial(m);
+      if (m.isPoker && stealTo !== null) { this.P[stealTo].slot.push(m); moved.push(m); }
+      else if (m.isPoker && sealed) { ps.slot.push(m); moved.push(m); }
+      else this.returnMaterial(m);
     }
-    const extra = stolen.length ? `，素材 ${fmt(stolen)} 進 ${this.nm(stealTo)} 的槽`
-      : obj.materials.length ? `，撲克素材洗回牌堆、遊戲卡素材進墓地` : '';
+    let extra = '';
+    if (moved.length && stealTo !== null) extra = `，素材 ${fmt(moved)} 進 ${this.nm(stealTo)} 的槽`;
+    else if (moved.length) extra = `，封存：素材 ${fmt(moved)} 進 ${this.nm(owner)} 的槽`;
+    else if (obj.materials.length) extra = '，命牌素材洗回牌堆、術卡素材進墓地';
     this.log(`✖ ${this.nm(owner)} 的 ${obj.card} 被破壞，進墓地${extra}`, null, null, 'kill');
+    if (obj.card.d.trig && obj.card.d.trig.destroyed) this.triggers.push({ pid: owner, card: obj.card, event: 'destroyed' });
+  }
+  leaveField(owner, z, to) {   // 不是破壞的離場：to = extra（回額外牌組）／gy（送墓地）
+    const ps = this.P[owner], fm = ps.mons[z];
+    ps.mons[z] = null;
+    (to === 'extra' ? this.P[fm.card.owner].extra : this.P[fm.card.owner].gy).push(fm.card);
+    for (const m of fm.materials) this.returnMaterial(m);
+    return fm;
+  }
+  placeMonster(p, card, mats, via = '') {
+    const me = this.P[p], z = this.freeZone(me.mons);
+    if (z === null) return null;
+    const fm = new FieldMon(card, mats);
+    if (card.d.immune) fm.immuneUntil = this.turn + 1;
+    me.mons[z] = fm;
+    this.stat('summon:' + card.name);
+    this.log(`→ ${card} 登場${via}`);
+    if (card.d.trig && card.d.trig.summoned) this.triggers.push({ pid: p, card, event: 'summoned' });
+    return fm;
   }
 
   // ── 合法行動 ──
   legalMain(p) {
     const me = this.P[p], op = this.P[1 - p]; const acts = [];
     if (me.hand.length) acts.push({ t: 'place' });
-    const freeM = this.freeZone(me.mons) !== null, freeS = this.freeZone(me.sts) !== null;
+    const freeS = this.freeZone(me.sts) !== null;
     const sources = [['extra', me.extra]];
     if (me.gyUsed < CFG.GY_PER_TURN) sources.push(['gy', me.gy]);
     for (const [src, lst] of sources) {
+      const cache = new Map();
       for (const c of lst) {
         if (this.blocked.has(c.uid)) continue;
-        const d = c.d;
-        if (d.kind === 'monster') {
-          if (!freeM && d.req[0] !== 'monster_plus') continue;
-          if (this.canPay(p, d.req, d.mode)) acts.push({ t: 'summon', card: c, src });
-        } else if (this.canPay(p, d.req, 'cost')) acts.push({ t: 'acquire', card: c, src });
+        if (src === 'gy' && c.d.extraOnly) continue;
+        const purpose = c.d.kind === 'monster' ? 'summon' : 'acquire';
+        if (c.d.onlyQuick) continue;
+        let ok = cache.get(c.name);
+        if (ok === undefined) { ok = this.canPay(p, this.paySpec(p, c, purpose)); cache.set(c.name, ok); }
+        if (ok) acts.push({ t: purpose, card: c, src });
       }
     }
     for (const c of me.ghand) {
       if (c.d.kind === 'spell' && this.spellOk(p, c)) acts.push({ t: 'spell', card: c });
-      if (c.d.kind === 'trap' && freeS && this.canPay(p, c.d.setReq, 'material', false, false)) acts.push({ t: 'set', card: c });
+      if (c.d.kind === 'trap' && freeS && this.canPay(p, this.paySpec(p, c, 'set'))) acts.push({ t: 'set', card: c });
     }
     me.mons.forEach((fm, z) => { if (fm && this.igniteOk(p, fm)) acts.push({ t: 'ignite', z }); });
-    if (this.turn > CFG.NO_ATTACK_TURNS) {
+    if (this.turn > CFG.NO_ATTACK_TURNS && me.noAttackTurn !== this.turn) {
+      const targets = op.mons.map((d, t) => [d, t]).filter(([d]) => d);
+      const taunts = targets.filter(([d]) => d.card.d.taunt);
       me.mons.forEach((fm, z) => {
-        if (!fm || fm.attacked) return;
-        if (op.mons.some(Boolean)) op.mons.forEach((d, t) => { if (d) acts.push({ t: 'attack', z, target: t }); });
+        if (!fm || fm.attacked || fm.card.d.cantAttack) return;
+        if (targets.length) for (const [, t] of (taunts.length ? taunts : targets)) acts.push({ t: 'attack', z, target: t });
         else acts.push({ t: 'attack', z, target: 'direct' });
       });
     }
     acts.push({ t: 'end' });
     return acts;
   }
+  inheritPairs(p) {   // 傳承：場上怪獸 → 額外牌組裡牌值大 1～3 的怪獸
+    const me = this.P[p], out = [];
+    for (const fm of me.mons) {
+      if (!fm) continue;
+      const r = fm.card.d.rank;
+      if (me.extra.some(c => c.d.kind === 'monster' && c.d.rank > r && c.d.rank <= r + 3)) out.push(fm);
+    }
+    return out;
+  }
   spellOk(p, c) {
-    const me = this.P[p], op = this.P[1 - p];
-    return { '號令': this.deck.length > 0, '掠奪令': op.mons.some(Boolean) || op.sts.some(Boolean), '重整': me.slot.length > 0 }[c.name];
+    const me = this.P[p], op = this.P[1 - p], free = this.freeZone(me.mons) !== null;
+    switch (c.name) {
+      case '號令': return this.deck.length > 0;
+      case '掠奪令': return op.mons.some(Boolean) || op.sts.some(Boolean);
+      case '重整': return me.slot.length > 0;
+      case '輪迴': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.rank <= 8);
+      case '餘燼重燃': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.series === '餘燼');
+      case '傳承': return this.inheritPairs(p).length > 0;
+      case '回流': return me.slot.length >= 2;
+      case '借道': return true;
+    }
+    return false;
   }
   igniteOk(p, fm) {
     if (!fm.materials.length || fm.used.has('ign')) return false;
-    if (fm.card.name === '庫房看守') return true;
-    if (fm.card.name === '同花盜賊') return this.P[1 - p].slot.length > 0 && this.quota(p) > 0;
+    switch (fm.card.name) {
+      case '庫房看守': return true;
+      case '同花盜賊': return this.P[1 - p].slot.length > 0 && this.quota(p) > 0;
+      case '拾骨術士': return fm.materials.some(m => !m.isPoker);
+    }
     return false;
   }
   actDesc(p, a) {
     const me = this.P[p], op = this.P[1 - p];
     switch (a.t) {
-      case 'place': return '把撲克手牌放進血量槽';
-      case 'summon': return `召喚 ${a.card}${a.src === 'gy' ? '（從墓地）' : ''}　${reqDesc(a.card.d.req, a.card.d.mode)}`;
-      case 'acquire': return `取得 ${a.card}${a.src === 'gy' ? '（從墓地）' : ''}　${reqDesc(a.card.d.req, 'cost')}`;
+      case 'place': return '把命牌手牌放進血量槽';
+      case 'summon': return `召喚 ${a.card}${a.src === 'gy' ? '（從墓地）' : ''}　${condDesc(a.card.d)}`;
+      case 'acquire': return `取得 ${a.card}${a.src === 'gy' ? '（從墓地）' : ''}　${condDesc(a.card.d)}`;
       case 'spell': return `發動 ${a.card}`;
-      case 'set': return `蓋放 ${a.card}${a.card.d.setReq ? '　' + reqDesc(a.card.d.setReq, 'material') : ''}`;
+      case 'set': return `蓋放 ${a.card}　${condDesc(a.card.d, 'set')}`;
       case 'ignite': return `發動 ${me.mons[a.z].card} 的效果`;
       case 'attack': return a.target === 'direct' ? `${me.mons[a.z].card} 直接攻擊` : `${me.mons[a.z].card} 攻擊 ${op.mons[a.target].card}`;
       default: return '結束回合';
@@ -768,6 +1014,7 @@ class Game {
       this.turn++; const p = this.cur;
       if (this.turn > CFG.MAX_TURNS) return this.finish(null, '回合上限');
       this.log(`第 ${this.turn} 回合：${this.nm(p)}`, null, null, 'turn');
+      if (this.P[p].guard) { this.P[p].guard = null; this.log(`${this.nm(p)} 的壁壘效果結束`); }
       if (this.slotScore(p) >= this.hp) return this.finish(p, '槽滿');
       if (this.turn > 1 || CFG.P1_DRAWS_TURN1) {
         if (!this.deck.length) return this.finish(1 - p, '牌庫耗盡');
@@ -782,6 +1029,7 @@ class Game {
         if (!a) throw new Error('不合法的行動 ' + k);
         if (a.t === 'end') break;
         await this.doMain(p, a);
+        await this.flushTriggers();
         this.check(); this.onEvent('state');
       }
       await this.endPhase(p);
@@ -792,7 +1040,7 @@ class Game {
   }
   resetTurn(p) {
     for (const ps of this.P) {
-      ps.usedOpp = 0;
+      ps.usedOpp = 0; ps.bonusOpp = 0;
       for (const fm of ps.mons) if (fm) { fm.used.clear(); fm.attacked = false; }
     }
     this.P[p].gyUsed = 0; this.blocked = new Set();
@@ -836,48 +1084,56 @@ class Game {
       if (cards.length !== over || cards.some(c => !c)) throw new Error('不合法的溢出選擇');
       for (const c of cards) remove(me.hand, c);
       me.slot.push(...cards);
-      this.log(`${this.nm(p)} 手牌超過上限，${fmt(cards)} 放進槽`);
+      this.log(`${this.nm(p)} 命牌手牌超過上限，${fmt(cards)} 放進槽`);
+    }
+    const overG = me.ghand.length - CFG.GHAND_LIMIT;
+    if (overG > 0) {
+      const idx = await this.decide(p, 'overflow_g', { n: overG });
+      const cards = idx.map(i => me.ghand[i]);
+      if (cards.length !== overG || cards.some(c => !c)) throw new Error('不合法的溢出選擇');
+      for (const c of cards) { remove(me.ghand, c); me.gy.push(c); }
+      this.log(`${this.nm(p)} 術卡手牌超過上限，${overG} 張送墓地`, `${this.nm(p)} 術卡手牌超過上限，${fmt(cards)} 送墓地`, p);
     }
     const q = 1 - p;
     const opts = this.quickOptions(q, null);
     if (opts.length) {
       const k = await this.decide(q, 'respond', { chain: null, opts });
-      if (k >= 0) await this.runChain(await this.activateQuick(q, opts[k], null));   // 取消時是 null，runChain 會忽略
+      if (k >= 0) await this.runChain(await this.activateQuick(q, opts[k], null));
+      await this.flushTriggers();
     }
     this.log(`槽：先手 ${this.slotScore(0)}／後手 ${this.slotScore(1)}（HP ${this.hp}），牌堆 ${this.deck.length}`, null, null, 'sum');
   }
 
   // ── 建立連鎖環節 ──
-  async makeSummon(p, card, src) {
-    const d = card.d, me = this.P[p];
-    const pays = this.payments(p, d.req, d.mode);
+  async makeSummon(p, card, src, opts = {}) {
+    const me = this.P[p];
+    const spec = this.paySpec(p, card, 'summon');
+    const pays = this.payments(p, spec);
     if (!pays.length) { this.blocked.add(card.uid); return null; }
-    const pay = await this.askPay(p, card, d.req, d.mode, pays);
+    const pay = await this.askPay(p, spec, pays);
     if (!pay) return null;
     remove(src === 'extra' ? me.extra : me.gy, card);
     if (src === 'gy') me.gyUsed++;
-    const { mats, costs, taken } = this.takePayment(p, pay, d.mode);
-    const link = new Link('summon', p, card, { mats });
-    link.oppTaken = taken;
-    const what = d.mode === 'material' ? `素材 ${fmt(mats)}` : `代價 ${fmt(costs)} 進槽`;
-    const used = taken.length ? `（使用對方槽 ${fmt(taken)}）` : '';
-    this.log(`${this.nm(p)} 召喚 ${card}${src === 'gy' ? '（從墓地）' : ''}：${what}${used}`);
+    const r = this.takePayment(p, pay, spec);
+    const link = new Link('summon', p, card, { mats: r.mats, redirect: opts.redirect || null });
+    link.oppTaken = r.taken;
+    this.log(`${this.nm(p)} 召喚 ${card}${src === 'gy' ? '（從墓地）' : ''}：${this.payText(r)}`);
     return link;
   }
   async makeAcquire(p, card, src) {
     const me = this.P[p];
-    const pays = this.payments(p, card.d.req, 'cost');
+    const spec = this.paySpec(p, card, 'acquire');
+    const pays = this.payments(p, spec);
     if (!pays.length) { this.blocked.add(card.uid); return null; }
-    const pay = await this.askPay(p, card, card.d.req, 'cost', pays);
+    const pay = await this.askPay(p, spec, pays);
     if (!pay) return null;
     remove(src === 'extra' ? me.extra : me.gy, card);
     if (src === 'gy') me.gyUsed++;
-    const { costs, taken } = this.takePayment(p, pay, 'cost');
+    const r = this.takePayment(p, pay, spec);
     const link = new Link('acquire', p, card);
-    link.oppTaken = taken;
-    const paid = costs.length ? `代價 ${fmt(costs)} 進槽` : '無代價';
-    const used = taken.length ? `（使用對方槽 ${fmt(taken)}）` : '';
-    this.log(`${this.nm(p)} 取得一張魔陷：${paid}${used}`, `${this.nm(p)} 取得 ${card}：${paid}${used}`, p);
+    link.oppTaken = r.taken;
+    const t = this.payText(r);
+    this.log(`${this.nm(p)} 取得一張魔陷${src === 'gy' ? '（從墓地）' : ''}：${t}`, `${this.nm(p)} 取得 ${card}${src === 'gy' ? '（從墓地）' : ''}：${t}`, p);
     return link;
   }
   async makeSpell(p, card) {
@@ -897,11 +1153,12 @@ class Game {
   async setTrap(p, card) {
     const me = this.P[p]; let mats = [];
     if (card.d.setReq) {
-      const pays = this.payments(p, card.d.setReq, 'material', false, false);
+      const spec = this.paySpec(p, card, 'set');
+      const pays = this.payments(p, spec);
       if (!pays.length) { this.blocked.add(card.uid); return; }
-      const pay = await this.askPay(p, card, card.d.setReq, 'material', pays, false, false);
+      const pay = await this.askPay(p, spec, pays);
       if (!pay) return;
-      mats = this.takePayment(p, pay, 'material').mats;
+      mats = this.takePayment(p, pay, spec).mats;
     }
     remove(me.ghand, card);
     me.sts[this.freeZone(me.sts)] = new FieldST(card, mats, this.turn);
@@ -911,14 +1168,15 @@ class Game {
   async makeIgnite(p, z) {
     const me = this.P[p], op = this.P[1 - p];
     const fm = me.mons[z]; fm.used.add('ign');
-    const mopts = fm.materials.map(x => ({ label: String(x), obj: x, card: x }));
+    const pool = fm.card.name === '拾骨術士' ? fm.materials.filter(m => !m.isPoker) : fm.materials;
+    const mopts = pool.map(x => ({ label: String(x), obj: x, card: x }));
     const m = mopts[await this.decide(p, 'target', { prompt: '選擇要拔除的素材', opts: mopts, kind: 'detach' })].obj;
     this.log(`${this.nm(p)} 發動 ${fm.card} 的效果，拔除 ${m}`);
     await this.detach(p, fm, m);
     const link = new Link('effect', p, fm.card, { fm });
     if (fm.card.name === '同花盜賊') {
       const sopts = dedupe(op.slot).map(c => ({ label: String(c), obj: c, card: c }));
-      link.oppTarget = sopts[await this.decide(p, 'target', { prompt: '選擇要從對方槽拿的牌', opts: sopts, kind: 'steal' })].obj;
+      link.oppTarget = sopts[await this.decide(p, 'target', { prompt: '選擇要從對方槽拿的命牌', opts: sopts, kind: 'steal' })].obj;
       me.usedOpp++;
       this.log(`指定對方槽的 ${link.oppTarget}`);
     }
@@ -933,22 +1191,38 @@ class Game {
   }
 
   // ── 快速效果與連鎖 ──
+  sealTarget(q, top) {   // 封存能保護的怪獸
+    const qs = this.P[q];
+    if (top.kind === 'attack' && top.data.target !== 'direct' && qs.mons.includes(top.data.target)) return top.data.target;
+    if (top.kind === 'spell' && top.card.name === '掠奪令' && top.data.target && top.data.target[0] === 'mon' && qs.mons.includes(top.data.target[2])) return top.data.target[2];
+    return null;
+  }
   quickOptions(q, chain) {
     const qs = this.P[q]; const opts = [];
     const top = chain && chain.length ? chain[chain.length - 1] : null;
-    if (top && !top.negated && top.pid !== q) {
+    const oppTop = top && !top.negated && top.pid !== q ? top : null;
+    if (oppTop) {
       qs.sts.forEach((st, z) => {
         if (!st || st.setTurn === this.turn) return;
-        if (st.card.name === '斷罪' && top.kind === 'summon') opts.push({ t: 'trap', z });
-        if (st.card.name === '反掠' && top.touches(q) && this.P[top.pid].slot.length) opts.push({ t: 'trap', z });
+        switch (st.card.name) {
+          case '斷罪': if (oppTop.kind === 'summon') opts.push({ t: 'trap', z }); break;
+          case '反掠': if (oppTop.touches(q) && this.P[oppTop.pid].slot.length) opts.push({ t: 'trap', z }); break;
+          case '止戈': if (oppTop.kind === 'attack') opts.push({ t: 'trap', z }); break;
+          case '封存': if (this.sealTarget(q, oppTop)) opts.push({ t: 'trap', z }); break;
+          case '壁壘': if (!qs.guard && (oppTop.touches(q) || (oppTop.kind === 'attack' && oppTop.data.target === 'direct'))) opts.push({ t: 'trap', z }); break;
+        }
       });
       qs.mons.forEach((fm, z) => {
-        if (fm && fm.card.name === '雙子哨兵' && !fm.used.has('twin') && fm.materials.length && top.touches(q)) opts.push({ t: 'twin', z });
+        if (fm && fm.card.name === '雙子哨兵' && !fm.used.has('twin') && fm.materials.length && oppTop.touches(q)) opts.push({ t: 'twin', z });
       });
     }
     if (this.cur !== q && this.freeZone(qs.mons) !== null) {
+      const seen = new Set();
       for (const c of qs.extra) {
-        if (c.d.quickSummon && !this.blocked.has(c.uid) && this.canPay(q, c.d.req, c.d.mode)) opts.push({ t: 'ambush', card: c });
+        const qsum = c.d.quickSummon;
+        if (!qsum || seen.has(c.name) || this.blocked.has(c.uid)) continue;
+        if (qsum === 'attack' && !(oppTop && oppTop.kind === 'attack')) continue;
+        if (this.canPay(q, this.paySpec(q, c, 'summon'))) { seen.add(c.name); opts.push({ t: 'ambush', card: c, redirect: qsum === 'attack' ? oppTop : null }); }
       }
     }
     return opts;
@@ -957,7 +1231,7 @@ class Game {
     const qs = this.P[q];
     if (o.t === 'trap') { const st = qs.sts[o.z]; return `發動陷阱 ${st.card}：${st.card.d.text}`; }
     if (o.t === 'twin') return `發動 ${qs.mons[o.z].card}：拔除 1 個素材，使對方這次召喚或發動無效`;
-    return `在對方回合召喚 ${o.card}（${reqDesc(o.card.d.req, o.card.d.mode)}）`;
+    return `在對方回合召喚 ${o.card}（${condDesc(o.card.d)}）${o.redirect ? '，成為攻擊對象' : ''}`;
   }
   linkDesc(l) {
     return `${this.nm(l.pid)} ${LINK_KIND[l.kind]} ${l.card}` + (l.kind === 'attack' ? (l.data.target === 'direct' ? '（直接攻擊）' : `→ ${l.data.target.card}`) : '');
@@ -970,7 +1244,9 @@ class Game {
       for (const m of st.materials) (m.isPoker ? qs.slot : this.P[m.owner].gy).push(m);
       this.stat('trap:' + st.card.name);
       this.log(`⚡ ${this.nm(q)} 發動陷阱 ${st.card}`, null, null, 'fx');
-      return new Link('trap', q, st.card, { target: top });
+      const link = new Link('trap', q, st.card, { target: top });
+      if (st.card.name === '封存') link.data.sealFm = this.sealTarget(q, top);
+      return link;
     }
     if (o.t === 'twin') {
       const fm = qs.mons[o.z]; fm.used.add('twin');
@@ -982,7 +1258,7 @@ class Game {
       return new Link('effect', q, fm.card, { fm, target: top });
     }
     this.stat('ambush');
-    return this.makeSummon(q, o.card, 'extra');
+    return this.makeSummon(q, o.card, 'extra', { redirect: o.redirect });
   }
   async runChain(first) {
     if (!first) return;
@@ -993,9 +1269,9 @@ class Game {
       let link = null;
       if (opts.length) {
         const k = await this.decide(q, 'respond', { chain, opts });
-        if (k >= 0) link = await this.activateQuick(q, opts[k], chain);
+        if (k >= 0) link = await this.activateQuick(q, opts[k], chain);   // 取消支付時是 null，視為沒回應
       }
-      if (link) { chain.push(link); passes = 0; this.onEvent('state'); } else passes++;   // 取消支付也算沒回應
+      if (link) { chain.push(link); passes = 0; this.onEvent('state'); } else passes++;
       q = 1 - q;
     }
     for (let i = chain.length - 1; i >= 0; i--) {
@@ -1004,17 +1280,18 @@ class Game {
     this.chain = null; this.onEvent('state');
   }
   negate(t) {
-    if (t.negated) return;
+    if (!t || t.negated) return;
     t.negated = true; this.stat('negate');
     const me = this.P[t.pid], op = this.P[1 - t.pid];
-    for (const c of t.oppTaken) {                        // 拿走的牌退回原本的槽
+    for (const c of t.oppTaken) {                        // 拿走的命牌退回原本的槽
       if (me.slot.includes(c)) remove(me.slot, c);
       else if (t.data.mats && t.data.mats.includes(c)) remove(t.data.mats, c);
       op.slot.push(c);
+      if (op.guard) op.guard.left++;
     }
     if (t.oppTaken.length) { this.log(`↩ ${fmt(t.oppTaken)} 退回 ${this.nm(1 - t.pid)} 的槽`); this.stat('returned', t.oppTaken.length); }
     t.oppTaken = [];
-    this.log(`✗ ${t.card} 被無效`, null, null, 'fx');
+    this.log(t.kind === 'attack' ? `✗ ${t.card} 的攻擊被無效` : `✗ ${t.card} 被無效`, null, null, 'fx');
     if (t.kind === 'summon') {
       me.gy.push(t.card);
       for (const m of t.data.mats) this.returnMaterial(m);
@@ -1022,62 +1299,183 @@ class Game {
     } else if (t.kind === 'acquire' || t.kind === 'spell') me.gy.push(t.card);
   }
 
+  // ── 觸發效果（快速速度，可以被連鎖） ──
+  triggerOk(t) {
+    const me = this.P[t.pid], op = this.P[1 - t.pid];
+    switch (t.card.name) {
+      case '斥候': return this.deck.length > 0;
+      case '餘燼之王': return op.mons.some(Boolean);
+      case '餘燼小鬼': return me.gy.includes(t.card) && [...me.extra, ...me.gy].some(c => c.d.series === '餘燼' && c.d.kind !== 'monster');
+    }
+    return false;
+  }
+  async flushTriggers() {
+    while (this.triggers.length) {
+      const t = this.triggers.shift();
+      if (!this.triggerOk(t)) continue;
+      if (!await this.decide(t.pid, 'trigger', { card: t.card, event: t.event })) continue;
+      this.stat('trigger:' + t.card.name);
+      this.log(`⚡ ${this.nm(t.pid)} 發動 ${t.card} 的效果`, null, null, 'fx');
+      await this.runChain(new Link('trigger', t.pid, t.card, { trig: t }));
+    }
+  }
+
   // ── 處理 ──
+  async pickTarget(p, prompt, cards, kind) {
+    const opts = cards.map(c => ({ label: String(c.card || c), obj: c, card: c.card || c }));
+    return opts[await this.decide(p, 'target', { prompt, opts, kind })].obj;
+  }
   async resolve(link) {
     const p = link.pid, me = this.P[p], op = this.P[1 - p], card = link.card;
     switch (link.kind) {
       case 'summon': {
-        const z = this.freeZone(me.mons);
-        if (z === null) {
+        const fm = this.placeMonster(p, card, link.data.mats);
+        if (!fm) {
           this.log(`沒有空的怪獸區，${card} 召喚失敗`);
           me.gy.push(card); for (const m of link.data.mats) this.returnMaterial(m); return;
         }
-        me.mons[z] = new FieldMon(card, link.data.mats);
-        this.stat('summon:' + card.name);
-        this.log(`→ ${card} 登場`);
-        if (card.name === '斥候') this.draw(p, 1, '斥候');
+        const atk = link.data.redirect;
+        if (atk && !atk.negated && this.P[atk.pid].mons.includes(atk.data.fm)) {
+          atk.data.target = fm;
+          this.log(`↪ 攻擊對象改成 ${card}`, null, null, 'fx');
+        }
         break;
       }
       case 'acquire': me.ghand.push(card); this.stat('acquire:' + card.name); break;
-      case 'spell': {
-        if (card.name === '號令') this.draw(p, 2, '號令');
-        else if (card.name === '掠奪令') {
-          const [kind, z, obj] = link.data.target;
-          const zones = kind === 'mon' ? op.mons : op.sts;
-          if (zones[z] === obj) this.destroyField(1 - p, kind, z);
-        } else if (card.name === '重整') {
-          const t1 = me.slot.map(c => ({ label: String(c), obj: c, card: c }));
-          const take = t1[await this.decide(p, 'target', { prompt: '從槽中取回哪張？', opts: t1, kind: 'reorg_take' })].obj;
-          remove(me.slot, take); me.hand.push(take);
-          const t2 = me.hand.map(c => ({ label: String(c), obj: c, card: c }));
-          const put = t2[await this.decide(p, 'target', { prompt: '放哪張進槽？', opts: t2, kind: 'reorg_place' })].obj;
-          remove(me.hand, put); me.slot.push(put);
-          this.log(`重整：${take} 回手牌，${put} 進槽`);
-        }
-        me.gy.push(card);
-        break;
-      }
+      case 'spell': await this.resolveSpell(link); me.gy.push(card); break;
       case 'effect':
         if (card.name === '庫房看守') this.draw(p, 1, '庫房看守');
+        else if (card.name === '拾骨術士') this.draw(p, 1, '拾骨術士');
         else if (card.name === '同花盜賊') {
           const t = link.oppTarget;
-          if (op.slot.includes(t)) { remove(op.slot, t); me.slot.push(t); this.stat('steal'); this.log(`→ 拿走對方槽的 ${t}`); }
+          if (op.slot.includes(t)) {
+            if (this.takeFromSlot(1 - p, t)) { me.slot.push(t); this.stat('steal'); this.log(`→ 拿走對方槽的 ${t}`); }
+            else this.log('壁壘擋下了這次拿取');
+          }
         } else if (card.name === '雙子哨兵') this.negate(link.data.target);
         break;
-      case 'trap':
-        if (card.name === '斷罪') this.negate(link.data.target);
-        else if (card.name === '反掠') {
-          const src = this.P[1 - p];
-          if (src.slot.length) {
-            const o = src.slot.map(c => ({ label: String(c), obj: c, card: c }));
-            const c = o[await this.decide(p, 'target', { prompt: '從對方槽拿哪張？', opts: o, kind: 'steal' })].obj;
-            remove(src.slot, c); me.slot.push(c); this.log(`→ 反掠拿走 ${c}`);
-          }
-        }
-        me.gy.push(card);
-        break;
+      case 'trap': await this.resolveTrap(link); me.gy.push(card); break;
+      case 'trigger': await this.resolveTrigger(link); break;
       case 'attack': await this.resolveAttack(link); break;
     }
+  }
+  async resolveSpell(link) {
+    const p = link.pid, me = this.P[p], op = this.P[1 - p], card = link.card;
+    switch (card.name) {
+      case '號令': this.draw(p, 2, '號令'); break;
+      case '掠奪令': {
+        const [kind, z, obj] = link.data.target;
+        const zones = kind === 'mon' ? op.mons : op.sts;
+        if (zones[z] === obj) this.destroyField(1 - p, kind, z);
+        break;
+      }
+      case '重整': {
+        if (!me.slot.length) break;
+        const take = await this.pickTarget(p, '從槽中取回哪張命牌？', me.slot, 'reorg_take');
+        remove(me.slot, take); me.hand.push(take);
+        const put = await this.pickTarget(p, '放哪張命牌進槽？', me.hand, 'reorg_place');
+        remove(me.hand, put); me.slot.push(put);
+        this.log(`重整：${take} 回手牌，${put} 進槽`);
+        break;
+      }
+      case '輪迴': case '餘燼重燃': {
+        const ok = card.name === '輪迴' ? x => x.d.kind === 'monster' && x.d.rank <= 8 : x => x.d.kind === 'monster' && x.d.series === '餘燼';
+        const cands = me.gy.filter(ok);
+        if (!cands.length || this.freeZone(me.mons) === null) { this.log(`${card} 沒有可以召喚的怪獸`); break; }
+        const c = await this.pickTarget(p, '從墓地召喚哪隻怪獸？', cands, 'revive');
+        remove(me.gy, c); this.placeMonster(p, c, [], '（從墓地）');
+        break;
+      }
+      case '傳承': {
+        const pairs = this.inheritPairs(p);
+        if (!pairs.length) { this.log('傳承沒有可以送墓地的怪獸'); break; }
+        const fm = await this.pickTarget(p, '選自己場上 1 隻怪獸送墓地', pairs.map(f => ({ card: f.card, fm: f })), 'tribute');
+        const r = fm.card.d.rank;
+        const z = me.mons.indexOf(fm.fm);
+        this.leaveField(p, z, 'gy');
+        this.log(`${fm.card} 送墓地`);
+        const ups = me.extra.filter(c => c.d.kind === 'monster' && c.d.rank > r && c.d.rank <= r + 3);
+        const c = await this.pickTarget(p, '從額外牌組召喚哪隻怪獸？', dedupeByName(ups), 'upgrade');
+        remove(me.extra, c); this.placeMonster(p, c, [], '（傳承）');
+        break;
+      }
+      case '回流': {
+        const back = [];
+        for (let i = 0; i < 2 && me.slot.length; i++) {
+          const c = await this.pickTarget(p, `選要洗回牌堆的命牌（${i + 1}/2）`, me.slot, 'reflow');
+          remove(me.slot, c); this.toDeck(c); back.push(c);
+        }
+        this.log(`回流：${fmt(back)} 洗回牌堆`);
+        this.draw(p, 3, '回流');
+        break;
+      }
+      case '借道': me.bonusOpp += 2; this.log(`${this.nm(p)} 本回合使用對方槽的次數 +2`); break;
+    }
+  }
+  async resolveTrap(link) {
+    const p = link.pid, card = link.card, t = link.data.target;
+    switch (card.name) {
+      case '斷罪': this.negate(t); break;
+      case '止戈':
+        this.negate(t);
+        if (t) { this.P[t.pid].noAttackTurn = this.turn; this.log(`${this.nm(t.pid)} 這回合不能再攻擊`); }
+        break;
+      case '封存': {
+        const fm = link.data.sealFm;
+        if (fm && this.P[p].mons.includes(fm)) { fm.sealTurn = this.turn; this.log(`${fm.card} 被封存：這回合被破壞時，命牌素材改進 ${this.nm(p)} 的槽`); }
+        break;
+      }
+      case '壁壘':
+        this.P[p].guard = { left: t && t.oppTaken.length ? 0 : 1 };
+        this.log(`${this.nm(p)} 的槽受到壁壘保護：到下個回合開始前，對方最多再拿走或移除 ${this.P[p].guard.left} 張`);
+        break;
+      case '反掠': {
+        const src = 1 - p;
+        if (this.P[src].slot.length) {
+          const c = await this.pickTarget(p, '從對方槽拿哪張命牌？', this.P[src].slot, 'steal');
+          if (this.takeFromSlot(src, c)) { this.P[p].slot.push(c); this.log(`→ 反掠拿走 ${c}`); }
+          else this.log('壁壘擋下了反掠');
+        }
+        break;
+      }
+    }
+  }
+  async resolveTrigger(link) {
+    const p = link.pid, me = this.P[p], op = this.P[1 - p];
+    switch (link.card.name) {
+      case '斥候': this.draw(p, 1, '斥候'); break;
+      case '餘燼之王': {
+        const targets = op.mons.filter(Boolean);
+        if (!targets.length) break;
+        const fm = await this.pickTarget(p, '選對方場上 1 隻怪獸回額外牌組', targets.map(f => ({ card: f.card, fm: f })), 'bounce');
+        this.leaveField(1 - p, op.mons.indexOf(fm.fm), 'extra');
+        this.log(`→ ${fm.card} 回到 ${this.nm(1 - p)} 的額外牌組`, null, null, 'kill');
+        break;
+      }
+      case '餘燼小鬼': {
+        const ok = c => c.d.series === '餘燼' && c.d.kind !== 'monster';
+        const cands = [...dedupeByName(me.extra.filter(ok)), ...dedupeByName(me.gy.filter(ok))];
+        if (!cands.length) break;
+        const c = await this.pickTarget(p, '把哪張「餘燼」魔陷加入手牌？（額外牌組或墓地）', cands, 'search');
+        remove(me.extra.includes(c) ? me.extra : me.gy, c); me.ghand.push(c);
+        this.log(`${this.nm(p)} 把 1 張魔陷加入手牌`, `${this.nm(p)} 把 ${c} 加入手牌`, p);
+        break;
+      }
+    }
+  }
+  async battleDestroy(owner, fm, stealTo) {
+    const ps = this.P[owner];
+    if (!ps.mons.includes(fm)) return;
+    if (fm.immuneUntil >= this.turn) { this.log(`${fm.card} 不會被戰鬥破壞`); return; }
+    if (fm.card.name === '雙頭魔像' && fm.materials.some(m => !m.isPoker)) {
+      if (await this.decide(owner, 'yesno', { prompt: `要拔除 ${fm.card} 的 1 個術卡素材，代替被戰鬥破壞嗎？`, card: fm.card })) {
+        const m = fm.materials.find(x => !x.isPoker);
+        remove(fm.materials, m); this.P[m.owner].gy.push(m);
+        this.log(`${fm.card} 拔除 ${m} 代替被破壞`, null, null, 'fx');
+        return;
+      }
+    }
+    this.destroyField(owner, 'mon', ps.mons.indexOf(fm), stealTo);
   }
   async resolveAttack(link) {
     const p = link.pid, me = this.P[p], op = this.P[1 - p];
@@ -1085,22 +1483,21 @@ class Game {
     if (!me.mons.includes(fm)) { this.log('攻擊怪獸已不在場上，攻擊取消'); return; }
     if (target === 'direct') {
       if (op.mons.some(Boolean)) { this.log('對方場上出現怪獸，直接攻擊取消'); return; }
-      if (!op.slot.length) { this.log('對方槽沒有牌可以移除'); return; }
-      const o = op.slot.map(c => ({ label: String(c), obj: c, card: c }));
-      const c = o[await this.decide(p, 'target', { prompt: '選擇要從對方槽移除的牌', opts: o, kind: 'remove' })].obj;
-      remove(op.slot, c); this.toDeck(c); this.stat('direct');
+      if (!op.slot.length) { this.log('對方槽沒有命牌可以移除'); return; }
+      if (op.guard && op.guard.left <= 0) { this.log('壁壘擋下了這次移除'); return; }
+      const c = await this.pickTarget(p, '選擇要從對方槽移除的命牌', op.slot, 'remove');
+      this.takeFromSlot(1 - p, c); this.toDeck(c); this.stat('direct');
       this.log(`→ 移除對方槽的 ${c}，洗回牌堆（${this.nm(1 - p)} 槽 ${this.slotScore(1 - p)}/${this.hp}）`, null, null, 'kill');
       return;
     }
     if (!op.mons.includes(target)) { this.log('攻擊目標已不在場上，攻擊取消'); return; }
     this.stat('battle');
-    const a = fm.card.d.rank, b = target.card.d.rank;
-    const za = me.mons.indexOf(fm), zb = op.mons.indexOf(target);
-    if (a > b) this.destroyField(1 - p, 'mon', zb, fm.card.name === '紅心騎士' ? p : null);
-    else if (a < b) this.destroyField(p, 'mon', za, target.card.name === '紅心騎士' ? 1 - p : null);
+    const a = fm.card.d.rank + (fm.card.name === '餘燼騎士' ? 2 : 0), b = target.card.d.rank;
+    if (a > b) await this.battleDestroy(1 - p, target, fm.card.name === '紅心騎士' ? p : null);
+    else if (a < b) await this.battleDestroy(p, fm, target.card.name === '紅心騎士' ? 1 - p : null);
     else {
       this.log('牌值相同');
-      if (CFG.TIE_DESTROYS_BOTH) { this.destroyField(1 - p, 'mon', zb); this.destroyField(p, 'mon', za); }
+      if (CFG.TIE_DESTROYS_BOTH) { await this.battleDestroy(1 - p, target, null); await this.battleDestroy(p, fm, null); }
     }
   }
 
@@ -1108,7 +1505,8 @@ class Game {
   check() {   // 張數守恆
     let n = this.deck.length; const owned = [0, 0];
     for (const ps of this.P) {
-      if (!ps.slot.every(c => c.isPoker)) throw new Error('槽裡出現遊戲卡');
+      if (!ps.slot.every(c => c.isPoker)) throw new Error('槽裡出現術卡');
+      if (!ps.hand.every(c => c.isPoker) || ps.ghand.some(c => c.isPoker)) throw new Error('手牌種類錯誤');
       n += ps.hand.length + ps.slot.length;
       for (const c of [...ps.extra, ...ps.ghand, ...ps.gy]) owned[c.owner]++;
       for (const h of [...ps.mons, ...ps.sts]) {
@@ -1117,14 +1515,15 @@ class Game {
         for (const m of h.materials) { if (m.isPoker) n++; else owned[m.owner]++; }
       }
     }
-    if (n !== TOTAL_POKER) throw new Error(`撲克牌總數 ${n} ≠ ${TOTAL_POKER}`);
-    if (owned[0] !== POOL.length || owned[1] !== POOL.length) throw new Error('遊戲卡數量錯誤 ' + owned);
+    if (n !== TOTAL_POKER) throw new Error(`命牌總數 ${n} ≠ ${TOTAL_POKER}`);
+    if (owned[0] !== this.decks[0].length || owned[1] !== this.decks[1].length) throw new Error('術卡數量錯誤 ' + owned);
   }
   stateHash() {
     const ids = a => a.map(c => c.uid).join(',');
     const parts = [this.turn, this.cur, ids(this.deck)];
     for (const ps of this.P) {
-      parts.push(ids(ps.hand), ids(ps.slot), ids(ps.gy), ids(ps.extra), ids(ps.ghand), ps.usedOpp, ps.gyUsed,
+      parts.push(ids(ps.hand), ids(ps.slot), ids(ps.gy), ids(ps.extra), ids(ps.ghand), ps.usedOpp, ps.gyUsed, ps.bonusOpp,
+        ps.guard ? ps.guard.left : '-',
         ps.mons.map(f => (f ? f.card.uid + ':' + ids(f.materials) + (f.attacked ? 'a' : '') : '-')).join('|'),
         ps.sts.map(s => (s ? s.card.uid + ':' + ids(s.materials) : '-')).join('|'));
     }
@@ -1134,15 +1533,17 @@ class Game {
   }
   toRecord(extra) {
     return Object.assign({
-      version: VERSION, mode: this.mode, seed: this.seed, cfg: Object.assign({}, CFG),
+      version: VERSION, mode: this.mode, seed: this.seed, cfg: Object.assign({}, CFG), decks: this.decks,
       names: this.names, hpCard: String(this.hpCard), hp: this.hp,
       result: this.result, stats: this.stats, decisions: this.record,
       startedAt: this.startedAt, endedAt: this.endedAt || null
     }, extra || {});
   }
 }
+function dedupeByName(cards) { const seen = new Set(); return cards.filter(c => (seen.has(c.name) ? false : seen.add(c.name))); }
 
 // ─────────── AI ───────────
+const TRAPS_AI = new Set(['斷罪', '反掠', '截流', '止戈', '封存', '壁壘']);
 class AIAgent {
   constructor(name, seed, opts) {
     opts = opts || {};
@@ -1154,7 +1555,7 @@ class AIAgent {
     this.placedTurn = null;
   }
   static value(c, hand) {
-    if (!c.isPoker) return 5 + c.d.rank / 13;
+    if (!c.isPoker) return c.d.kind === 'monster' ? 5 + c.d.rank / 13 : 6;
     if (c.joker) return 10;
     const sameR = hand.filter(x => x.isPoker && x.rank === c.rank).length - 1;
     const sameS = hand.filter(x => x.isPoker && x.suit === c.suit).length - 1;
@@ -1166,50 +1567,60 @@ class AIAgent {
       case 'main': return this.chooseMain(g, p, pl.acts);
       case 'pay': {
         const pay = pl.pays[this.choosePayment(g, p, pl.card, pl.pays)];
-        return { own: pay.own.map(c => c.uid), opp: pay.opp.map(c => c.uid) };
+        return { own: pay.own.map(c => c.uid), opp: pay.opp.map(c => c.uid), gy: pay.gy.map(c => c.uid) };
       }
       case 'place': return this.choosePlace(g, p);
       case 'overflow': return this.chooseOverflow(g, p, pl.n);
+      case 'overflow_g': {
+        const gh = g.P[p].ghand;
+        return gh.map((c, i) => i).sort((a, b) => (TRAPS_AI.has(gh[a].name) ? 1 : 0) - (TRAPS_AI.has(gh[b].name) ? 1 : 0)).slice(0, pl.n).sort((a, b) => a - b);
+      }
       case 'target': return this.chooseTarget(g, p, pl.opts, pl.kind);
       case 'respond': return this.chooseResponse(g, p, pl.chain, pl.opts);
-      case 'intercept': return true;
+      case 'intercept': case 'trigger': case 'yesno': return true;
     }
     throw new Error('未知的決策 ' + kind);
   }
   wantReorg(me) { return me.slot.some(c => c.joker) && me.hand.some(c => !c.joker); }
-  noDowngrade(card, pay) { return pay.own.every(c => c.isPoker || c.d.rank < card.d.rank); }
-  goodPays(g, p, card) { return g.payments(p, card.d.req, card.d.mode).filter(x => this.noDowngrade(card, x)); }
+  noDowngrade(card, pay) { return pay.own.every(c => c.isPoker || c.d.kind !== 'monster' || card.d.kind !== 'monster' || c.d.rank < card.d.rank); }
+  goodPays(g, p, card) { return g.payments(p, g.paySpec(p, card, 'summon')).filter(x => this.noDowngrade(card, x)); }
+  wantSpell(g, p, name) {
+    const me = g.P[p], op = g.P[1 - p];
+    switch (name) {
+      case '號令': case '掠奪令': case '輪迴': case '餘燼重燃': case '傳承': return true;
+      case '重整': return this.wantReorg(me);
+      case '借道': return op.slot.length >= 2;
+      case '回流': return me.hand.length <= 1 && g.slotScore(p) < g.hp - 3;
+    }
+    return false;
+  }
   chooseMain(g, p, acts) {
     const me = g.P[p], op = g.P[1 - p];
     const by = {}; acts.forEach((a, i) => { (by[a.t] = by[a.t] || []).push(i); });
     const get = t => by[t] || [];
-    const suicidal = a => a.t === 'attack' && a.target !== 'direct' && me.mons[a.z].card.d.rank <= op.mons[a.target].card.d.rank;
-    const others = acts.map((a, i) => i).filter(i => acts[i].t !== 'end' && acts[i].t !== 'place' && !suicidal(acts[i]));
+    const suicidal = a => a.t === 'attack' && a.target !== 'direct' && me.mons[a.z].card.d.rank + (me.mons[a.z].card.name === '餘燼騎士' ? 2 : 0) <= op.mons[a.target].card.d.rank;
+    const others = acts.map((a, i) => i).filter(i => acts[i].t !== 'end' && acts[i].t !== 'place' && !suicidal(acts[i]) && !(acts[i].t === 'spell' && !this.wantSpell(g, p, acts[i].card.name)));
     if (others.length && this.rng.random() < this.eps) return this.rng.choice(others);
     if (get('ignite').length) return get('ignite')[0];
-    for (const i of get('spell')) {
-      const n = acts[i].card.name;
-      if (n === '號令' || n === '掠奪令') return i;
-      if (n === '重整' && this.wantReorg(me)) return i;
-    }
+    for (const i of get('spell')) if (this.wantSpell(g, p, acts[i].card.name)) return i;
     const sums = get('summon').slice().sort((a, b) => acts[b].card.d.rank - acts[a].card.d.rank);
     for (const i of sums) if (this.goodPays(g, p, acts[i].card).length) return i;
     const traps = me.ghand.filter(c => c.d.kind === 'trap').length, freeS = me.sts.filter(z => z === null).length;
-    for (const i of get('acquire')) {
-      const d = acts[i].card.d;
-      if (d.kind === 'trap' && traps < freeS) return i;
-      if (d.kind === 'spell' && (d.name === '號令' || d.name === '掠奪令')) return i;
-      if (d.name === '重整' && this.wantReorg(me)) return i;
+    if (me.ghand.length < CFG.GHAND_LIMIT) {
+      for (const i of get('acquire')) {
+        const d = acts[i].card.d;
+        if (d.kind === 'trap' && traps < freeS) return i;
+        if (d.kind === 'spell' && this.wantSpell(g, p, d.name)) return i;
+      }
     }
     if (get('set').length) return get('set')[0];
     for (const i of get('attack')) if (acts[i].target === 'direct') return i;
     let best = null;
     for (const i of get('attack')) {
+      if (suicidal(acts[i])) continue;
       const a = acts[i], att = me.mons[a.z], dfm = op.mons[a.target];
-      if (att.card.d.rank > dfm.card.d.rank) {
-        const s = dfm.materials.length * 2 + dfm.card.d.rank;
-        if (!best || s > best[0]) best = [s, i];
-      }
+      const s = dfm.materials.length * 2 + dfm.card.d.rank - (dfm.immuneUntil >= g.turn ? 100 : 0);
+      if (s > 0 && (!best || s > best[0])) best = [s, i];
     }
     if (best) return best[1];
     if (get('place').length && this.placedTurn !== g.turn) { this.placedTurn = g.turn; return get('place')[0]; }
@@ -1236,36 +1647,43 @@ class AIAgent {
     if (order.length >= g.hp - g.slotScore(p)) return order;
     return order.slice(0, Math.max(0, order.length - this.keep));
   }
-  chooseOverflow(g, p, n) { return this.sortedHand(g.P[p]).slice(0, n); }
+  chooseOverflow(g, p, n) { return this.sortedHand(g.P[p]).slice(0, n).sort((a, b) => a - b); }
   chooseTarget(g, p, opts, kind) {
-    const objs = opts.map(o => o.obj);
-    if (kind === 'steal' || kind === 'remove' || kind === 'reorg_take') {
-      const j = objs.findIndex(o => o.isPoker && o.joker);
-      return j >= 0 ? j : this.rng.int(objs.length);
-    }
-    if (kind === 'destroy') {
-      let best = 0, bs = -Infinity;
-      objs.forEach((t, i) => { const s = t[0] === 'mon' ? t[2].materials.length * 2 + t[2].card.d.rank / 13 : 1.5; if (s > bs) { bs = s; best = i; } });
-      return best;
-    }
-    if (kind === 'detach' || kind === 'reorg_place') {
-      const hand = g.P[p].hand; let best = 0, bs = Infinity;
-      objs.forEach((c, i) => { const v = AIAgent.value(c, hand); if (v < bs) { bs = v; best = i; } });
-      return best;
+    const objs = opts.map(o => o.obj), cards = opts.map(o => o.card);
+    const argmax = f => { let b = 0, bs = -Infinity; cards.forEach((c, i) => { const s = f(c, i); if (s > bs) { bs = s; b = i; } }); return b; };
+    switch (kind) {
+      case 'steal': case 'remove': case 'reorg_take': {
+        const j = cards.findIndex(c => c.isPoker && c.joker);
+        return j >= 0 ? j : this.rng.int(objs.length);
+      }
+      case 'destroy': return argmax((c, i) => { const t = objs[i]; return t[0] === 'mon' ? t[2].materials.length * 2 + t[2].card.d.rank / 13 : 1.5; });
+      case 'detach': case 'reorg_place': case 'reflow': return argmax(c => -AIAgent.value(c, g.P[p].hand) - (c.isPoker && c.joker ? 20 : 0));
+      case 'bounce': case 'revive': case 'upgrade': return argmax(c => c.d.rank);
+      case 'tribute': return argmax(c => -c.d.rank);
     }
     return this.rng.int(objs.length);
   }
   chooseResponse(g, q, chain, opts) {
     const top = chain && chain.length ? chain[chain.length - 1] : null;
+    const me = g.P[q];
+    const loses = top && top.kind === 'attack' && top.data.target !== 'direct' && top.data.target.card &&
+      top.data.fm.card.d.rank + (top.data.fm.card.name === '餘燼騎士' ? 2 : 0) > top.data.target.card.d.rank;
+    const direct = top && top.kind === 'attack' && top.data.target === 'direct';
     for (let i = 0; i < opts.length; i++) {
       const o = opts[i];
       if (o.t === 'trap') {
-        const name = g.P[q].sts[o.z].card.name;
+        const name = me.sts[o.z].card.name;
         if (name === '斷罪' && top && (top.card.d.rank >= 6 || top.oppTaken.length)) return i;
         if (name === '反掠') return i;
+        if (name === '止戈' && (direct || loses)) return i;
+        if (name === '封存' && loses && top.data.target.materials.some(m => m.isPoker)) return i;
+        if (name === '壁壘' && g.slotScore(q) >= g.hp - 3) return i;
       }
       if (o.t === 'twin') return i;
-      if (o.t === 'ambush' && (!top || (top.kind === 'attack' && top.data.target === 'direct'))) return i;
+      if (o.t === 'ambush') {
+        if (o.redirect && (direct || loses)) return i;
+        if (!o.redirect && (!top || direct)) return i;
+      }
     }
     return -1;
   }
@@ -1281,12 +1699,12 @@ class ReplayAgent {
   }
 }
 
-async function simulate(n, seed, onProgress) {
+async function simulate(n, seed, onProgress, decks) {
   const rng = new RNG(seed === undefined ? 1 : seed);
   const wins = [0, 0], reasons = {}, byHp = {}, stats = {}; let draws = 0; const turns = [];
   for (let i = 0; i < n; i++) {
     const agents = [new AIAgent('AI-1', rng.int(2 ** 32)), new AIAgent('AI-2', rng.int(2 ** 32))];
-    const g = new Game(agents, rng.int(2 ** 32), { mode: 'sim' });
+    const g = new Game(agents, rng.int(2 ** 32), { mode: 'sim', decks });
     const r = await g.run();
     if (r.winner === null) draws++; else wins[r.winner]++;
     reasons[r.reason] = (reasons[r.reason] || 0) + 1;
@@ -1300,8 +1718,8 @@ async function simulate(n, seed, onProgress) {
   return { n, wins, draws, reasons, byHp, stats, avgTurns: turns.reduce((a, b) => a + b, 0) / n, medTurns: turns[Math.floor(n / 2)], maxTurns: turns[n - 1] };
 }
 
-const api = { VERSION, DEFAULT_CFG, CFG, setConfig, RNG, POOL, Poker, GCard, Game, AIAgent, ReplayAgent, simulate,
-  reqDesc, reqName, reqSize, rankStr, fmt, RED, LINK_KIND, match, payCompletable };
+const api = { VERSION, DEFAULT_CFG, CFG, setConfig, RNG, POOL, DEF, PRESETS, validateDeck, Poker, GCard, Game, AIAgent, ReplayAgent, simulate,
+  condDesc, reqName, reqSize, rankStr, fmt, RED, LINK_KIND, KIND_NAME, match, payCompletable, gyCompletable, gyMatch };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 root.CardEngine = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -1492,21 +1910,23 @@ const LS = {
 };
 const SPEEDS = { fast: 150, mid: 500, slow: 1000 };
 const REC_KEY = 'cg-records-v1';
-const KIND = { monster: '怪獸', spell: '魔法', trap: '陷阱' };
+const KIND = E.KIND_NAME;
 const params = new URLSearchParams(location.search);
 const LOCAL = params.has('local');
+const CUSTOM = '自訂';
 
 const app = {
   game: null, viewer: 0, mode: null, gameNo: 0, logShown: 0, queued: false, decisionOpen: false,
   pending: null,          // 等待玩家的主要階段決策 { pl, p, resolve }
   ui: { mode: 'none' },   // none｜idle｜pay｜attack｜pick
   sel: null,              // 目前選取的卡（data-k）
-  placeSel: new Set(),    // 要放進血量槽的撲克手牌 uid
+  placeSel: new Set(),    // 要放進血量槽的命牌 uid
   prepared: null,         // 主要階段後接著要自動回答的決策 { kind, v }
   view: null,             // 牌堆檢視視窗 { type, pid, sel, detail }
   M: null,                // 這次繪製的發光／選取標記
-  session: null, isHost: false, lobby: null, oppName: '對手', online: null, gotStart: false, roomCode: null,
-  speed: LS.get('cg-speed', 'mid'), name: LS.get('cg-name', '')
+  session: null, isHost: false, lobby: null, oppName: '對手', oppDeck: null, online: null, gotStart: false, roomCode: null,
+  speed: LS.get('cg-speed', 'mid'), name: LS.get('cg-name', ''),
+  builder: null
 };
 
 // ─────────── 小工具 ───────────
@@ -1519,10 +1939,12 @@ function toast(msg, ms = 2600) {
 }
 function showScreen(name) {
   $('#menu').classList.toggle('hidden', name !== 'menu');
+  $('#builder').classList.toggle('hidden', name !== 'builder');
   $('#table').classList.toggle('hidden', name !== 'table');
   $('#btnLeave').classList.toggle('hidden', name !== 'table');
   $('#btnMyExtra').classList.toggle('hidden', name !== 'table' || app.viewer === null);
-  if (name === 'menu') { updateRecCount(); $('#status').textContent = ''; hidePop(); }
+  if (name === 'menu') { updateRecCount(); fillDeckSelects(); $('#status').textContent = ''; hidePop(); }
+  window.scrollTo(0, 0);
 }
 function loadCfg() { E.setConfig(LS.get('cg-cfg', {})); }
 function download(name, obj) {
@@ -1537,6 +1959,20 @@ function copyText(text) {
   else toast('請手動複製');
 }
 
+// ─────────── 牌組 ───────────
+function customDeck() { const d = LS.get('cg-deck-custom', null); return d && !E.validateDeck(d) ? d : null; }
+function deckByName(name) { return name === CUSTOM ? customDeck() || E.PRESETS['標準'] : E.PRESETS[name] || E.PRESETS['標準']; }
+function deckNames() { return [...Object.keys(E.PRESETS), ...(customDeck() ? [CUSTOM] : [])]; }
+function myDeck() { return deckByName(LS.get('cg-deck-me', '標準')); }
+function aiDeck() { return deckByName(LS.get('cg-deck-ai', '標準')); }
+function fillDeckSelects() {
+  const names = deckNames();
+  for (const [id, key] of [['#deckMe', 'cg-deck-me'], ['#deckAI', 'cg-deck-ai']]) {
+    let cur = LS.get(key, '標準'); if (!names.includes(cur)) cur = '標準';
+    $(id).innerHTML = names.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  }
+}
+
 // ─────────── 卡片外觀（平常只顯示名稱） ───────────
 function markCls(key) {
   const M = app.M; if (!M || !key) return '';
@@ -1544,9 +1980,9 @@ function markCls(key) {
 }
 function pokerHTML(c, size = '', key = null) {
   const color = c.joker ? 'jk' : E.RED.has(c.suit) ? 'red' : '';
-  const face = c.joker ? '<b>JK</b>' : `<b>${E.rankStr(c.rank)}</b><i>${c.suit}</i>`;
+  const face = c.joker ? '<b>鬼</b>' : `<b>${E.rankStr(c.rank)}</b><i>${c.suit}</i>`;
   if (!key) return `<span class="pk ${color} ${size}">${face}</span>`;
-  return `<button class="pk ${color} ${size}${markCls(key)}" data-k="${key}" aria-label="${esc(String(c))}">${face}</button>`;
+  return `<button class="pk ${color} ${size}${markCls(key)}" data-k="${key}" aria-label="${c.joker ? '鬼牌' : esc(String(c))}">${face}</button>`;
 }
 const chipHTML = c => (c.isPoker ? pokerHTML(c, 'chip') : `<span class="mchip">${esc(c.d.name)}</span>`);
 function gcHTML(c, o = {}) {
@@ -1560,15 +1996,15 @@ function gcHTML(c, o = {}) {
   return `<button class="gc ${d.kind} ${o.cls || ''}${markCls(key)}"${dk} aria-label="${esc(d.name)}"><span class="band"></span>${head}<span class="gc-name">${esc(d.name)}</span>${mats}${tag}</button>`;
 }
 function reqText(d) {
-  if (d.kind === 'monster') return E.reqDesc(d.req, d.mode) + (d.quickSummon ? '（也可以在對方回合召喚）' : '');
-  let s = '取得時' + E.reqDesc(d.req, 'cost');
-  if (d.setReq) s += '；蓋放時' + E.reqDesc(d.setReq, 'material');
+  if (d.kind === 'monster') return E.condDesc(d);
+  let s = '取得時' + E.condDesc(d);
+  if (d.setReq) s += '；蓋放時' + E.condDesc(d, 'set');
   return s;
 }
 function cardInfoHTML(c, holder) {
   const d = c.d;
   return `<div class="cardinfo"><div class="big">${gcHTML(c, { key: null })}<dl>
-    <dt>種類</dt><dd>${KIND[d.kind]}</dd>
+    <dt>種類</dt><dd>${KIND[d.kind]}${d.series ? `<span class="series">${esc(d.series)}</span>` : ''}</dd>
     ${d.kind === 'monster' ? `<dt>花色牌值</dt><dd>${d.suit}${E.rankStr(d.rank)}</dd>` : ''}
     <dt>條件</dt><dd>${esc(reqText(d))}</dd><dt>效果</dt><dd>${esc(d.text)}</dd>
     ${holder && holder.materials.length ? `<dt>素材</dt><dd>${holder.materials.map(chipHTML).join(' ')}</dd>` : ''}
@@ -1597,29 +2033,33 @@ function locate(ps, c) {
   if (ps.gy.includes(c)) return '墓地';
   return '素材';
 }
-function ownedCards(pid) {   // 某位玩家的 15 張遊戲卡，依卡池順序
+function ownedCards(pid) {   // 某位玩家的 15 張術卡，依牌組順序
   return allCards(app.game).filter(c => !c.isPoker && c.owner === pid).sort((a, b) => a.uid - b.uid);
 }
 
 // ─────────── 發光與選取 ───────────
 function mainActs() { return app.pending ? app.pending.pl.acts : []; }
 function payState() {
-  const u = app.ui, g = app.game, p = app.viewer;
-  const cand = g.payCandidates(p, u.pmode, u.allowOpp, u.allowMon);
-  const isOpp = c => cand.opp.includes(c);
-  const chosen = u.chosen;
-  const chosenOpp = chosen.filter(isOpp).length;
-  const ownRest = cand.own.filter(c => !chosen.includes(c)), oppRest = cand.opp.filter(c => !chosen.includes(c));
+  const u = app.ui, g = app.game, p = app.viewer, spec = u.spec;
+  const s = g.sources(p, spec);
+  const isOpp = c => s.opp.includes(c);
+  const chosenOpp = u.chosen.filter(isOpp).length;
+  const ownRest = s.own.filter(c => !u.chosen.includes(c)), oppRest = s.opp.filter(c => !u.chosen.includes(c));
   const glow = new Set();
-  for (const c of [...ownRest, ...oppRest]) {
-    const opp = isOpp(c);
-    const ok = E.payCompletable(u.req, chosen.concat([c]), ownRest.filter(x => x !== c), oppRest.filter(x => x !== c),
-      cand.quota - chosenOpp - (opp ? 1 : 0));
-    if (ok) glow.add('u' + c.uid);
+  if (spec.req) {
+    for (const c of [...ownRest, ...oppRest]) {
+      const o = isOpp(c);
+      if (E.payCompletable(spec.req, u.chosen.concat([c]), ownRest.filter(x => x !== c), oppRest.filter(x => x !== c),
+        s.quota - chosenOpp - (o ? 1 : 0), spec.needSet)) glow.add('u' + c.uid);
+    }
   }
-  const size = E.reqSize(u.req);
-  const complete = chosen.length === size && E.match(u.req, chosen) && chosenOpp <= cand.quota;
-  return { cand, glow, complete, size, chosenOpp };
+  const gyAll = g.gyCands(p, spec), gyRest = gyAll.filter(c => !u.gyChosen.includes(c));
+  if (spec.gyReq) for (const c of gyRest) if (E.gyCompletable(spec.gyReq, u.gyChosen.concat([c]), gyRest.filter(x => x !== c))) glow.add('u' + c.uid);
+  const size = spec.req ? E.reqSize(spec.req) : 0;
+  const stdDone = spec.req
+    ? u.chosen.length === size && E.match(spec.req, u.chosen) && (!spec.needSet || u.chosen.some(c => spec.needSet.has(c))) && chosenOpp <= s.quota
+    : u.chosen.length === 0;
+  return { s, glow, size, gyAll, complete: stdDone && E.gyMatch(spec.gyReq, u.gyChosen) };
 }
 function computeMarks() {
   const M = { glow: new Set(), chosen: new Set(), tags: new Map(), sel: app.sel };
@@ -1634,7 +2074,7 @@ function computeMarks() {
   } else if (u.mode === 'pay') {
     const ps = payState(); app.payCache = ps;
     M.glow = ps.glow;
-    for (const c of u.chosen) M.chosen.add('u' + c.uid);
+    for (const c of [...u.chosen, ...u.gyChosen]) M.chosen.add('u' + c.uid);
     M.sel = null;
   } else if (u.mode === 'attack') {
     for (const [k, t] of u.targets) { M.glow.add(k); M.tags.set(k, t.tag); }
@@ -1657,34 +2097,41 @@ function slotHTML(pid) {
     const c = ps.slot[i];
     cells += `<span class="sock${i === hp - 1 ? ' goal' : ''}${i >= hp ? ' over' : ''}">${c ? pokerHTML(c, 'mini', 'u' + c.uid) : ''}</span>`;
   }
-  const extra = score !== ps.slot.length ? `<br><small>含素材 ${score - ps.slot.length}</small>` : '';
+  const extra = (score !== ps.slot.length ? `<br><small>含素材 ${score - ps.slot.length}</small>` : '')
+    + (ps.guard ? `<br><small>壁壘：對手還能拿 ${Math.max(0, ps.guard.left)} 張</small>` : '');
   return `<div class="slot"><div class="slot-label">血量槽 <b>${score}</b> / ${hp}${extra}</div><div class="track">${cells}</div></div>`;
 }
 function pileHTML(type, pid, n, extraCls = '') {
-  const key = `pile:${type}:${pid}`;
-  return `<button class="pile ${type} ${extraCls}${n ? '' : ' empty'}${markCls(key)}" data-k="${key}" aria-label="${type === 'gy' ? '墓地' : '額外牌組'} ${n} 張"><span>${type === 'gy' ? '墓地' : '額外牌組'}</span><b>${n}</b></button>`;
+  const key = `pile:${type}:${pid}`, label = type === 'gy' ? '墓地' : '額外牌組';
+  return `<button class="pile ${type} ${extraCls}${n ? '' : ' empty'}${markCls(key)}" data-k="${key}" aria-label="${label} ${n} 張"><span>${label}</span><b>${n}</b></button>`;
+}
+function monTag(fm, key) {
+  const g = app.game, t = app.M.tags.get(key);
+  if (t) return { tag: t.text, tagCls: t.cls };
+  if (fm.sealTurn === g.turn) return { tag: '封存' };
+  if (fm.immuneUntil >= g.turn) return { tag: '不會被戰破' };
+  if (fm.attacked) return { tag: '已攻擊' };
+  return {};
 }
 function sideHTML(pid, near) {
-  const g = app.game, ps = g.P[pid], M = app.M;
+  const g = app.game, ps = g.P[pid];
   const see = app.viewer === null || app.viewer === pid;
   const acting = !g.result && g.cur === pid;
   const head = `<div class="side-head"><span class="who">${esc(g.names[pid])}<span class="seat">${pid === 0 ? '先手' : '後手'}</span>${acting ? '<span class="acting">回合中</span>' : ''}</span>
-    <span>撲克手牌 ${ps.hand.length}｜遊戲卡手牌 ${ps.ghand.length}${see && app.viewer !== null ? '｜<button class="linkbtn" data-k="deck">確認牌組</button>' : ''}</span></div>`;
+    <span>命牌手牌 ${ps.hand.length}｜術卡手牌 ${ps.ghand.length}${see && app.viewer !== null ? '｜<button class="linkbtn" data-k="deck">確認牌組</button>' : ''}</span></div>`;
   const mons = `<div class="zrow"><div class="zones mons">${ps.mons.map(fm => {
     if (!fm) return '<span class="zone"></span>';
-    const key = 'u' + fm.card.uid, t = M.tags.get(key);
-    return gcHTML(fm.card, { mats: fm.materials, cls: fm.attacked ? 'used' : '',
-      tag: t ? t.text : fm.attacked ? '已攻擊' : '', tagCls: t ? t.cls : '' });
+    return gcHTML(fm.card, Object.assign({ mats: fm.materials, cls: fm.attacked ? 'used' : '' }, monTag(fm, 'u' + fm.card.uid)));
   }).join('')}</div>${pileHTML('gy', pid, ps.gy.length)}</div>`;
   const sts = `<div class="zrow"><div class="zones">${ps.sts.map((st, z) => !st ? '<span class="zone st"></span>'
     : see ? gcHTML(st.card, { mats: st.materials, cls: 'st-card', tag: '蓋放' })
       : `<button class="gc back st-card${markCls(`z:s:${pid}:${z}`)}" data-k="z:s:${pid}:${z}" aria-label="蓋放的魔陷"></button>`).join('')}</div>${pileHTML('extra', pid, ps.extra.length, 'st-size')}</div>`;
   let hand;
   if (see) {
-    hand = `<div class="hand">${ps.hand.map(c => pokerHTML(c, '', 'u' + c.uid)).join('') || '<span class="note">沒有撲克手牌</span>'}`
+    hand = `<div class="hand">${ps.hand.map(c => pokerHTML(c, '', 'u' + c.uid)).join('') || '<span class="note">沒有命牌手牌</span>'}`
       + (ps.ghand.length ? '<span class="sep"></span>' + ps.ghand.map(c => gcHTML(c, { cls: 'small' })).join('') : '') + '</div>';
   } else {
-    hand = `<div class="opp-hand" aria-label="對手手牌 ${ps.hand.length} 張">${ps.hand.map(() => '<span class="pk back small"></span>').join('')}${ps.ghand.map(() => '<span class="pk back small" style="border-color:var(--trap)"></span>').join('')}</div>`;
+    hand = `<div class="opp-hand" aria-label="對手命牌手牌 ${ps.hand.length} 張、術卡手牌 ${ps.ghand.length} 張">${ps.hand.map(() => '<span class="pk back small"></span>').join('')}${ps.ghand.map(() => '<span class="pk back small" style="border-color:var(--trap)"></span>').join('')}</div>`;
   }
   return near ? slotHTML(pid) + mons + sts + hand + head : head + hand + sts + mons + slotHTML(pid);
 }
@@ -1711,27 +2158,32 @@ function renderPrompt() {
   if (g.result) { el.innerHTML = resultHTML(); bindResult(); return; }
   let html;
   if (u.mode === 'idle') {
+    const me = g.P[app.viewer];
     const canPlace = mainActs().some(a => a.t === 'place');
     const n = app.placeSel.size;
     html = `<div class="prompt"><h3>你的回合</h3><p>點發亮的卡行動。同一張卡再點一次看詳細資料。</p>`
+      + (me.noAttackTurn === g.turn ? '<p>止戈：這回合不能攻擊。</p>' : '')
       + (n ? `<div class="btns"><button class="btn primary" id="pPlace">放進血量槽（${n} 張）</button><button class="btn" id="pPlaceClear">取消選擇</button></div>`
-        : canPlace ? '<p>點撲克手牌，可以選要放進血量槽的牌。</p>' : '')
+        : canPlace ? '<p>點命牌手牌，可以選要放進血量槽的牌。</p>' : '')
       + `<button class="endturn" id="pEnd">結束回合</button>
-      <p class="legend">發亮的額外牌組、墓地：裡面有現在能用的卡<br>發亮的怪獸：可以攻擊或發動效果<br>發亮的手牌：可以發動或蓋放</p></div>`;
+      <p class="legend">發亮的額外牌組、墓地：裡面有現在能用的卡<br>發亮的怪獸：可以攻擊或發動效果<br>發亮的術卡手牌：可以發動或蓋放</p></div>`;
   } else if (u.mode === 'pay') {
-    const ps = app.payCache || payState();
-    const d = u.card.d;
+    const ps = app.payCache || payState(), spec = u.spec, d = u.card.d;
+    const gyN = spec.gyReq ? spec.gyReq.n : 0;
     html = `<div class="prompt"><h3>${u.verb} ${esc(d.name)}</h3>
-      <p>${esc(E.reqDesc(u.req, u.pmode))}。點盤面上發亮的牌，已選 ${u.chosen.length} / ${ps.size}。</p>
-      ${u.allowOpp && ps.cand.quota > 0 ? `<p>可以用對手血量槽的牌，最多 ${ps.cand.quota} 張。</p>` : ''}
-      <div class="chips">${u.chosen.map(chipHTML).join('') || '<span class="note" style="margin:0">還沒選</span>'}</div>
+      <p>${esc(E.condDesc(d, spec.purpose === 'set' ? 'set' : 'main'))}。點發亮的牌。</p>
+      ${spec.needSet ? '<p>怪獸區滿了，條件裡要用到自己場上的怪獸。</p>' : ''}
+      ${spec.req ? `<p>手牌、場上、對手槽：已選 ${u.chosen.length} / ${ps.size}${ps.s.quota > 0 ? `（對手槽最多 ${ps.s.quota} 張）` : ''}</p>
+      <div class="chips">${u.chosen.map(chipHTML).join('') || '<span class="note" style="margin:0">還沒選</span>'}</div>` : ''}
+      ${spec.gyReq ? `<p>墓地：已選 ${u.gyChosen.length} / ${gyN}</p>
+      <div class="chips">${ps.gyAll.map(c => gcHTML(c, { cls: 'small' })).join('') || '<span class="note" style="margin:0">墓地沒有怪獸</span>'}</div>` : ''}
       <div class="btns"><button class="btn primary" id="pConfirm" ${ps.complete ? '' : 'disabled'}>確認${u.verb}</button>
       <button class="btn" id="pCancel">取消</button><button class="linkbtn" id="pInfo">詳細資料</button></div>
-      ${!ps.complete && !ps.glow.size && u.chosen.length ? '<p style="margin-top:8px">目前選的牌湊不成條件，點已選的牌可以取消。</p>' : ''}</div>`;
+      ${!ps.complete && !ps.glow.size && (u.chosen.length || u.gyChosen.length) ? '<p style="margin-top:8px">目前選的牌湊不成條件，點已選的牌可以取消。</p>' : ''}</div>`;
   } else if (u.mode === 'attack') {
     html = `<div class="prompt"><h3>${esc(u.name)} 要攻擊誰？</h3><p>點發亮的怪獸。標籤是比較牌值後的結果。</p><div class="btns"><button class="btn" id="pCancel">取消</button></div></div>`;
   } else if (u.mode === 'pick') {
-    html = `<div class="prompt"><h3>${esc(u.prompt)}</h3><p>點盤面上發亮的牌${u.multi ? `，已選 ${u.chosen.length} / ${u.multi}` : ''}。</p>`
+    html = `<div class="prompt"><h3>${esc(u.prompt)}</h3><p>點盤面上發亮的卡${u.multi ? `，已選 ${u.chosen.length} / ${u.multi}` : ''}。</p>`
       + (u.multi ? `<div class="btns"><button class="btn primary" id="pConfirm" ${u.chosen.length === u.multi ? '' : 'disabled'}>確認</button></div>` : '') + '</div>';
   } else {
     const who = g.names[g.cur];
@@ -1838,7 +2290,7 @@ function onPop(cmd) {
   const [t, v] = cmd.split(':'); const n = +v;
   const key = app.sel;
   hidePop();
-  if (t === 'detail') { app.sel = null; showDetails(cardByUid(+key.slice(1)), true); scheduleRender(); return; }
+  if (t === 'detail') { app.sel = null; showDetails(cardByUid(+key.slice(1))); scheduleRender(); return; }
   if (t === 'act') resolveMain(n);
   else if (t === 'set') startPayForAction(n);
   else if (t === 'attack') startAttack(n);
@@ -1861,31 +2313,32 @@ function confirmPlace() {
 }
 const VERB = { summon: '召喚', acquire: '取得', set: '蓋放' };
 function startPayForAction(i) {
-  const a = mainActs()[i], d = a.card.d;
-  let req, pmode, allowOpp = true, allowMon = true;
-  if (a.t === 'summon') { req = d.req; pmode = d.mode; }
-  else if (a.t === 'acquire') { req = d.req; pmode = 'cost'; }
-  else { req = d.setReq; pmode = 'material'; allowOpp = false; allowMon = false; }
-  if (a.t === 'set' && !req) { resolveMain(i); return; }
-  if (!req) { resolveMain(i, { kind: 'pay', v: { own: [], opp: [] } }); return; }
+  const g = app.game, a = mainActs()[i];
+  const spec = g.paySpec(app.viewer, a.card, a.t);
+  if (a.t === 'set' && !spec.req) { resolveMain(i); return; }
+  if (!spec.req && !spec.gyReq) { resolveMain(i, { kind: 'pay', v: { own: [], opp: [], gy: [] } }); return; }
   app.sel = null;
-  setUI({ mode: 'pay', card: a.card, req, pmode, allowOpp, allowMon, chosen: [], verb: VERB[a.t],
+  setUI({ mode: 'pay', card: a.card, spec, chosen: [], gyChosen: [], verb: VERB[a.t],
     onDone: v => resolveMain(i, { kind: 'pay', v }), onCancel: () => setUI({ mode: 'idle' }) });
 }
 function payClick(key) {
   const u = app.ui;
   if (key === 'u' + u.card.uid) { showDetails(u.card); return; }
-  const k = u.chosen.findIndex(c => 'u' + c.uid === key);
-  if (k >= 0) { u.chosen.splice(k, 1); scheduleRender(); return; }
+  for (const list of [u.chosen, u.gyChosen]) {
+    const k = list.findIndex(c => 'u' + c.uid === key);
+    if (k >= 0) { list.splice(k, 1); scheduleRender(); return; }
+  }
   const ps = app.payCache || payState();
   if (!ps.glow.has(key)) return;
-  const c = [...ps.cand.own, ...ps.cand.opp].find(x => 'u' + x.uid === key);
+  const gyc = ps.gyAll.find(x => 'u' + x.uid === key);
+  if (gyc) { u.gyChosen.push(gyc); scheduleRender(); return; }
+  const c = [...ps.s.own, ...ps.s.opp].find(x => 'u' + x.uid === key);
   if (c) { u.chosen.push(c); scheduleRender(); }
 }
 function confirmPay() {
   const u = app.ui, ps = payState();
   if (!ps.complete) return;
-  const v = { own: u.chosen.filter(c => ps.cand.own.includes(c)).map(c => c.uid), opp: u.chosen.filter(c => ps.cand.opp.includes(c)).map(c => c.uid) };
+  const v = { own: u.chosen.filter(c => ps.s.own.includes(c)).map(c => c.uid), opp: u.chosen.filter(c => ps.s.opp.includes(c)).map(c => c.uid), gy: u.gyChosen.map(c => c.uid) };
   const done = u.onDone;
   app.ui = { mode: 'none' };
   done(v);
@@ -1895,20 +2348,19 @@ function startAttack(z) {
   const g = app.game, me = g.P[app.viewer], op = g.P[1 - app.viewer], acts = mainActs();
   const list = acts.map((a, i) => [a, i]).filter(([a]) => a.t === 'attack' && a.z === z);
   if (list.length === 1 && list[0][0].target === 'direct') { resolveMain(list[0][1]); return; }
-  const att = me.mons[z].card.d.rank;
+  const card = me.mons[z].card;
+  const att = card.d.rank + (card.name === '餘燼騎士' ? 2 : 0);
   const targets = new Map();
   for (const [a, i] of list) {
-    const def = op.mons[a.target].card;
-    const r = def.d.rank;
-    targets.set('u' + def.uid, { i, tag: att > r ? { text: '可破壞', cls: 'win' } : att < r ? { text: '會被破壞', cls: 'lose' } : { text: '平手', cls: 'tie' } });
+    const dfm = op.mons[a.target], r = dfm.card.d.rank;
+    let tag = att > r ? { text: '可破壞', cls: 'win' } : att < r ? { text: '會被破壞', cls: 'lose' } : { text: '平手', cls: 'tie' };
+    if (att > r && dfm.immuneUntil >= g.turn) tag = { text: '不會被戰破', cls: 'tie' };
+    targets.set('u' + dfm.card.uid, { i, tag });
   }
   app.sel = null;
-  setUI({ mode: 'attack', key: 'u' + me.mons[z].card.uid, name: me.mons[z].card.d.name, targets, onCancel: () => setUI({ mode: 'idle' }) });
+  setUI({ mode: 'attack', key: 'u' + card.uid, name: card.d.name, targets, onCancel: () => setUI({ mode: 'idle' }) });
 }
-function cancelMode() {
-  const u = app.ui;
-  if (u.onCancel) u.onCancel();
-}
+function cancelMode() { const u = app.ui; if (u.onCancel) u.onCancel(); }
 function pickClick(key) {
   const u = app.ui;
   if (!u.keys.has(key)) return;
@@ -1939,7 +2391,7 @@ function onKey(key) {
   if (!key.startsWith('u')) return;
   const c = cardByUid(+key.slice(1));
   if (!c) return;
-  if (c.isPoker) {   // 撲克手牌：選要放進血量槽的牌
+  if (c.isPoker) {   // 命牌手牌：選要放進血量槽的牌
     const me = app.viewer === null ? null : app.game.P[app.viewer];
     if (u.mode === 'idle' && me && me.hand.includes(c) && mainActs().some(a => a.t === 'place')) {
       if (app.placeSel.has(c.uid)) app.placeSel.delete(c.uid); else app.placeSel.add(c.uid);
@@ -1947,7 +2399,7 @@ function onKey(key) {
     }
     return;
   }
-  if (app.sel === key) { app.sel = null; hidePop(); showDetails(c, true); scheduleRender(); return; }
+  if (app.sel === key) { app.sel = null; hidePop(); showDetails(c); scheduleRender(); return; }
   app.sel = key; scheduleRender();
 }
 
@@ -1975,14 +2427,14 @@ function closeModal() {
   const f = app.modalClose; app.modalClose = null; if (f) f();
 }
 function chooseModal({ title, desc, options, noneLabel, onPick }) {
-  app.view = null;
+  app.view = null; app.modalClose = null;
   app.decisionOpen = true;
   const body = options.map((h, i) => `<button class="opt" data-i="${i}">${h}</button>`).join('');
   openModal({ title, desc, body, buttons: noneLabel ? [{ label: noneLabel, onClick: () => done(-1) }] : [] });
   $('#mBody').querySelectorAll('.opt').forEach(b => b.onclick = () => done(+b.dataset.i));
   function done(i) { app.decisionOpen = false; closeModal(); onPick(i); scheduleRender(); }
 }
-function showDetails(c, fromBoard) {
+function showDetails(c) {
   if (!c || app.decisionOpen) return;
   openModal({ title: c.d.name, body: cardInfoHTML(c, holderOf(c)), buttons: [{ label: '關閉', primary: true, onClick: closeModal }], dismissable: true });
 }
@@ -2007,7 +2459,7 @@ function renderViewer(open) {
   const cards = v.type === 'extra' ? ps.extra : v.type === 'gy' ? ps.gy : ownedCards(v.pid);
   const who = v.pid === app.viewer ? '你的' : `${g.names[v.pid]} 的`;
   const title = { extra: `${who}額外牌組`, gy: `${who}墓地`, deck: '確認牌組' }[v.type] + `（${cards.length} 張）`;
-  let body, buttons, desc = '';
+  let body, buttons;
   if (v.detail) {
     const c = cards.find(x => x.uid === v.detail);
     body = c ? cardInfoHTML(c, holderOf(c)) : '';
@@ -2015,21 +2467,21 @@ function renderViewer(open) {
   } else {
     const use = usableMap(v);
     body = cards.length ? `<div class="viewer">${cards.map(c => {
-      const k = 'v' + c.uid;
-      const cls = (use.has(c.uid) ? ' glow' : '') + (v.sel === c.uid ? ' sel' : '');
-      const face = gcHTML(c, { key: k, cls: cls.trim() });
-      return `<div class="cell">${face}${v.type === 'deck' ? `<span class="loc">${locate(ps, c)}</span>` : ''}</div>`;
+      const cls = (use.has(c.uid) ? 'glow' : '') + (v.sel === c.uid ? ' sel' : '');
+      return `<div class="cell">${gcHTML(c, { key: 'v' + c.uid, cls })}${v.type === 'deck' ? `<span class="loc">${locate(ps, c)}</span>` : ''}</div>`;
     }).join('')}</div>` : '<p class="note">這裡沒有卡。</p>';
     let hint;
     if (v.sel) {
       const c = cards.find(x => x.uid === v.sel);
-      hint = c ? `${c.d.name}：${reqText(c.d)}。${use.has(c.uid) ? '' : v.type !== 'deck' && v.pid === app.viewer && app.ui.mode === 'idle' ? '目前湊不齊條件。' : ''}再點一次看詳細資料。` : '';
+      const why = c && !use.has(c.uid) && v.type !== 'deck' && v.pid === app.viewer && app.ui.mode === 'idle'
+        ? (c.d.onlyQuick ? '只能在對方攻擊時召喚。' : c.d.extraOnly && v.type === 'gy' ? '只能從額外牌組召喚。' : '目前湊不齊條件。') : '';
+      hint = c ? `${c.d.name}：${reqText(c.d)}。${why}再點一次看詳細資料。` : '';
     } else if (use.size) hint = '發亮的卡現在可以使用，點一下開始支付。其他卡點一下看條件，再點一次看詳細資料。';
     else hint = '點一下看條件，再點一次看詳細資料。';
     body += `<p class="note" id="mHint">${esc(hint)}</p>`;
     buttons = [{ label: '關閉', primary: true, onClick: closeModal }];
   }
-  if (open) openModal({ title, desc, body, buttons, dismissable: true, onClose: () => { app.view = null; } });
+  if (open) openModal({ title, body, buttons, dismissable: true, onClose: () => { app.view = null; } });
   else {
     $('#mTitle').textContent = title; $('#mBody').innerHTML = body;
     const foot = $('#mFoot'); foot.innerHTML = '';
@@ -2053,9 +2505,19 @@ class HumanAgent {
     return new Promise(resolve => ask(kind, pl, g, p, resolve));
   }
 }
+const BOARD_KINDS = new Set(['steal', 'remove', 'reorg_take', 'reorg_place', 'destroy', 'bounce', 'tribute', 'reflow']);
 function optionKey(o, kind, p) {
   if (kind === 'destroy') return o.obj[0] === 'mon' ? 'u' + o.obj[2].card.uid : `z:s:${1 - p}:${o.obj[1]}`;
   return o.card ? 'u' + o.card.uid : null;
+}
+function optionLabel(o) {
+  const c = o.card;
+  if (!c) return esc(o.label);
+  if (c.isPoker) return pokerHTML(c, 'chip');
+  return `<span class="mchip">${esc(c.d.name)}</span>${c.d.kind === 'monster' ? ` <span class="lbl">${c.d.suit}${E.rankStr(c.d.rank)}</span>` : ''}`;
+}
+function closeViewerForDecision() {   // 要做決定時，關掉正在看的牌堆或卡片資料
+  if (!app.decisionOpen && !$('#modal').classList.contains('hidden')) { closeModal(); app.view = null; }
 }
 function ask(kind, pl, g, p, resolve) {
   switch (kind) {
@@ -2065,50 +2527,55 @@ function ask(kind, pl, g, p, resolve) {
       return;
     case 'pay':   // 主要階段以外要支付（例如在對方回合召喚）
       closeViewerForDecision();
-      setUI({ mode: 'pay', card: pl.card, req: pl.req, pmode: pl.mode, allowOpp: pl.allowOpp, allowMon: pl.allowMon, chosen: [], verb: '召喚',
+      setUI({ mode: 'pay', card: pl.card, spec: pl.spec, chosen: [], gyChosen: [], verb: '召喚',
         onDone: v => resolve(v), onCancel: () => { setUI({ mode: 'none' }); resolve(null); } });
       return;
     case 'place':
-    case 'overflow': {
+    case 'overflow':
+    case 'overflow_g': {
       closeViewerForDecision();
-      const hand = g.P[p].hand, keys = new Map(hand.map((c, i) => ['u' + c.uid, i]));
-      const n = kind === 'overflow' ? pl.n : hand.length;
-      setUI({ mode: 'pick', keys, multi: n, chosen: [], prompt: kind === 'overflow' ? `手牌超過 ${E.CFG.HAND_LIMIT} 張，選 ${pl.n} 張放進血量槽` : '選要放進血量槽的牌',
-        onDone: v => resolve(v) });
+      const list = kind === 'overflow_g' ? g.P[p].ghand : g.P[p].hand;
+      const keys = new Map(list.map((c, i) => ['u' + c.uid, i]));
+      const n = kind === 'place' ? list.length : pl.n;
+      const prompt = kind === 'overflow' ? `命牌手牌超過 ${E.CFG.HAND_LIMIT} 張，選 ${pl.n} 張放進血量槽`
+        : kind === 'overflow_g' ? `術卡手牌超過 ${E.CFG.GHAND_LIMIT} 張，選 ${pl.n} 張送墓地` : '選要放進血量槽的牌';
+      setUI({ mode: 'pick', keys, multi: n, chosen: [], prompt, onDone: v => resolve(v) });
       return;
     }
     case 'target': {
       if (pl.opts.length === 1) return resolve(0);
       const keys = new Map();
-      let board = pl.kind !== 'detach';
+      let board = BOARD_KINDS.has(pl.kind);
       if (board) pl.opts.forEach((o, i) => { const k = optionKey(o, pl.kind, p); if (!k) board = false; else if (!keys.has(k)) keys.set(k, i); });
       if (board) { closeViewerForDecision(); setUI({ mode: 'pick', keys, multi: 0, chosen: [], prompt: pl.prompt, onDone: resolve }); return; }
-      return chooseModal({ title: pl.prompt, options: pl.opts.map(o => (o.card ? chipHTML(o.card) : esc(o.label))), onPick: resolve });
+      return chooseModal({ title: pl.prompt, options: pl.opts.map(optionLabel), onPick: resolve });
     }
     case 'respond': {
       const top = pl.chain && pl.chain.length ? pl.chain[pl.chain.length - 1] : null;
       return chooseModal({ title: top ? '要回應嗎？' : '對手的回合即將結束', desc: top ? linkText(top) : '你可以在這時候發動快速效果。',
         options: pl.opts.map(o => esc(g.quickDesc(p, o))), noneLabel: '不回應', onPick: resolve });
     }
+    case 'trigger':
+      return chooseModal({ title: `要發動 ${pl.card.d.name} 的效果嗎？`, desc: pl.card.d.text,
+        options: ['發動'], noneLabel: '不發動', onPick: k => resolve(k === 0) });
+    case 'yesno':
+      return chooseModal({ title: pl.prompt, options: ['是'], noneLabel: '否', onPick: k => resolve(k === 0) });
     case 'intercept':
-      return chooseModal({ title: '要發動截流嗎？', desc: `對手拔除了素材 ${pl.m}。發動後這張牌改進你的血量槽。`,
+      return chooseModal({ title: '要發動截流嗎？', desc: `對手拔除了素材 ${pl.m}。發動後這張命牌改進你的血量槽。`,
         options: ['發動截流'], noneLabel: '不發動', onPick: k => resolve(k === 0) });
   }
   throw new Error('未知的決策 ' + kind);
 }
-function closeViewerForDecision() {   // 要做決定時，關掉正在看的牌堆或卡片資料
-  if (!app.decisionOpen && !$('#modal').classList.contains('hidden')) { closeModal(); app.view = null; }
-}
 
 // ─────────── 開始、結束 ───────────
 const aiDelay = kind => (kind === 'main' ? SPEEDS[app.speed] : Math.round(SPEEDS[app.speed] * 0.6));
-function begin(agents, seed, viewer, mode, names) {
+function begin(agents, seed, viewer, mode, names, decks) {
   const no = ++app.gameNo;
   app.viewer = viewer; app.mode = mode; app.pending = null; app.prepared = null; app.logShown = 0; app.decisionOpen = false;
   app.ui = { mode: 'none' }; app.sel = null; app.placeSel.clear(); app.view = null;
   closeModal();
   const g = new E.Game(agents, seed, {
-    mode, names: names || agents.map(a => a.name),
+    mode, decks, names: names || agents.map(a => a.name),
     onEvent: () => { if (no !== app.gameNo) throw new Error('aborted'); scheduleRender(); }
   });
   app.game = g;
@@ -2120,11 +2587,12 @@ function startVsAI() {
   loadCfg(); app.roomCode = null;
   const seat = Math.random() < 0.5 ? 0 : 1;
   const human = new HumanAgent(myName()), ai = new E.AIAgent('AI', undefined, { delay: aiDelay });
-  begin(seat === 0 ? [human, ai] : [ai, human], randSeed(), seat, 'ai');
+  const decks = []; decks[seat] = myDeck(); decks[1 - seat] = aiDeck();
+  begin(seat === 0 ? [human, ai] : [ai, human], randSeed(), seat, 'ai', null, decks);
 }
 function startWatch() {
   loadCfg(); app.roomCode = null;
-  begin([new E.AIAgent('AI-1', undefined, { delay: aiDelay }), new E.AIAgent('AI-2', undefined, { delay: aiDelay })], randSeed(), null, 'watch');
+  begin([new E.AIAgent('AI-1', undefined, { delay: aiDelay }), new E.AIAgent('AI-2', undefined, { delay: aiDelay })], randSeed(), null, 'watch', null, [myDeck(), aiDeck()]);
 }
 function currentRecord() {
   const g = app.game;
@@ -2207,7 +2675,7 @@ function setupSession(t, isHost) {
   };
   s.onControl = m => onControl(s, m);
   if (!isHost) {
-    const hello = () => s.send({ type: 'hello', version: E.VERSION, name: app.name });
+    const hello = () => s.send({ type: 'hello', version: E.VERSION, name: app.name, deck: myDeck() });
     hello();
     clearInterval(app.helloTimer);
     app.helloTimer = setInterval(() => { if (app.gotStart || app.session !== s) clearInterval(app.helloTimer); else hello(); }, 1500);
@@ -2221,13 +2689,18 @@ function onControl(s, m) {
       lobbyError(`對手的版本是 ${m.version}，你的是 ${E.VERSION}。請雙方重新整理網頁。`);
       return;
     }
+    const err = E.validateDeck(m.deck);
+    if (err) { s.send({ type: 'error', text: '你的牌組不合規定：' + err }); lobbyError('對手的牌組不合規定：' + err); return; }
     app.oppName = cleanName(m.name) || '對手';
+    app.oppDeck = m.deck.slice();
     if (!app.hostStarted) { app.hostStarted = true; hostStart(); }
   } else if (m.type === 'start' && !app.isHost) {
     app.gotStart = true;
     if (app.online && app.online.gid === m.gid) return;
     if (m.version !== E.VERSION) { lobbyError(`房主的版本是 ${m.version}，你的是 ${E.VERSION}。請雙方重新整理網頁。`); s.close(); return; }
     E.setConfig(m.cfg);
+    const bad = (m.decks || []).map(d => E.validateDeck(d)).find(Boolean);
+    if (!m.decks || bad) { lobbyError('收到的牌組不合規定：' + (bad || '缺少牌組')); s.close(); return; }
     startOnline(m);
   } else if (m.type === 'rematch' && app.isHost) {
     if (app.game && app.game.result) hostStart();
@@ -2238,9 +2711,11 @@ function onControl(s, m) {
 function hostStart() {
   loadCfg();
   const hostSeat = Math.random() < 0.5 ? 0 : 1;
-  const names = []; names[hostSeat] = app.name; names[1 - hostSeat] = app.oppName;
+  const names = [], decks = [];
+  names[hostSeat] = app.name; names[1 - hostSeat] = app.oppName;
+  decks[hostSeat] = myDeck(); decks[1 - hostSeat] = app.oppDeck;
   const m = { type: 'start', gid: Math.random().toString(36).slice(2, 10), seed: randSeed(), hostSeat,
-    cfg: Object.assign({}, E.CFG), names, version: E.VERSION };
+    cfg: Object.assign({}, E.CFG), names, decks, version: E.VERSION };
   app.session.send(m);
   startOnline(m);
 }
@@ -2253,7 +2728,7 @@ function startOnline(m) {
   app.lobby = null;
   const local = new N.NetLocalAgent(new HumanAgent(names[mySeat]), s);
   const remote = new N.RemoteAgent(s, names[1 - mySeat]);
-  begin(mySeat === 0 ? [local, remote] : [remote, local], m.seed, mySeat, 'online', names);
+  begin(mySeat === 0 ? [local, remote] : [remote, local], m.seed, mySeat, 'online', names, m.decks);
   toast(mySeat === 0 ? '你是先手' : '你是後手');
 }
 
@@ -2278,15 +2753,57 @@ function exportRecords() {
   download(`對局紀錄-${stamp()}.json`, { exportedAt: new Date().toISOString(), version: E.VERSION, count: records.length, records });
 }
 
+// ─────────── 組牌 ───────────
+function openBuilder() {
+  const start = customDeck() || E.PRESETS[LS.get('cg-deck-me', '標準')] || E.PRESETS['標準'];
+  app.builder = { counts: countOf(start) };
+  $('#bBase').innerHTML = deckNames().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  showScreen('builder'); renderBuilder();
+}
+function countOf(deck) { const c = {}; for (const n of deck) c[n] = (c[n] || 0) + 1; return c; }
+function builderDeck() { return E.POOL.flatMap(d => Array(app.builder.counts[d.name] || 0).fill(d.name)); }
+function renderBuilder() {
+  const cnt = app.builder.counts, total = builderDeck().length;
+  $('#bCount').textContent = `${total} / ${E.CFG.DECK_SIZE}`;
+  $('#bMsg').textContent = total === E.CFG.DECK_SIZE ? '可以儲存' : total < E.CFG.DECK_SIZE ? `還差 ${E.CFG.DECK_SIZE - total} 張` : `多了 ${total - E.CFG.DECK_SIZE} 張`;
+  $('#bSave').disabled = total !== E.CFG.DECK_SIZE;
+  const groups = [['monster', '怪獸'], ['spell', '魔法'], ['trap', '陷阱']];
+  $('#bList').innerHTML = groups.map(([kind, title]) => {
+    const defs = E.POOL.filter(d => d.kind === kind).sort((a, b) => a.rank - b.rank);
+    return `<h2 class="b-group">${title}</h2><div class="b-grid">${defs.map(d => {
+      const n = cnt[d.name] || 0, fake = { d, uid: -1, isPoker: false };
+      return `<div class="b-row${n ? ' has' : ''}">${gcHTML(fake, { key: null, cls: 'small' })}
+        <div class="b-info"><b>${esc(d.name)}</b>${d.series ? `<span class="series">${esc(d.series)}</span>` : ''}
+          <span class="meta">${d.kind === 'monster' ? `${d.suit}${E.rankStr(d.rank)}｜` : ''}${esc(reqText(d))}</span><p>${esc(d.text)}</p></div>
+        <div class="b-qty"><button data-b="-" data-n="${esc(d.name)}" aria-label="少一張 ${esc(d.name)}" ${n ? '' : 'disabled'}>−</button><b>${n}</b>
+          <button data-b="+" data-n="${esc(d.name)}" aria-label="多一張 ${esc(d.name)}" ${n >= E.CFG.MAX_COPIES || total >= E.CFG.DECK_SIZE ? 'disabled' : ''}>＋</button></div></div>`;
+    }).join('')}</div>`;
+  }).join('');
+}
+function builderClick(e) {
+  const b = e.target.closest('[data-b]'); if (!b) return;
+  const name = b.dataset.n, cnt = app.builder.counts;
+  cnt[name] = Math.max(0, Math.min(E.CFG.MAX_COPIES, (cnt[name] || 0) + (b.dataset.b === '+' ? 1 : -1)));
+  renderBuilder();
+}
+function saveBuilder() {
+  const deck = builderDeck(), err = E.validateDeck(deck);
+  if (err) { toast(err); return; }
+  LS.set('cg-deck-custom', deck); LS.set('cg-deck-me', CUSTOM);
+  toast('已儲存，並設成你的牌組');
+  showScreen('menu');
+}
+
 // ─────────── 規則設定 ───────────
 const CFG_FIELDS = [
-  ['HAND_LIMIT', '撲克手牌上限', 'num', 1, 15],
+  ['HAND_LIMIT', '命牌手牌上限', 'num', 1, 15],
+  ['GHAND_LIMIT', '術卡手牌上限', 'num', 1, 10],
   ['USE_LIMIT', '每回合可使用對手槽的張數', 'num', 0, 5],
   ['NO_ATTACK_TURNS', '開局前幾個回合不能攻擊（1 = 只有先手第一回合）', 'num', 0, 4],
-  ['GY_PER_TURN', '每回合可從墓地召喚或取回幾張', 'num', 0, 3],
+  ['GY_PER_TURN', '每回合可從墓地召喚或取得幾張', 'num', 0, 3],
   ['P1_DRAWS_TURN1', '先手第一回合也抽牌', 'bool'],
   ['TIE_DESTROYS_BOTH', '戰鬥平手時雙方都破壞', 'bool'],
-  ['STACKED_MATERIALS', '怪獸被當成素材時，它原本的素材', 'sel', [['deck', '撲克洗回牌堆、遊戲卡進墓地'], ['transfer', '疊到新怪獸下方'], ['slot', '撲克進自己的槽']]]
+  ['STACKED_MATERIALS', '場上怪獸被當成條件時，它原本的素材', 'sel', [['deck', '命牌洗回牌堆、術卡進墓地'], ['transfer', '疊到新怪獸下方'], ['slot', '命牌進自己的槽']]]
 ];
 function openSettings() {
   loadCfg();
@@ -2313,30 +2830,35 @@ function openSettings() {
 }
 
 // ─────────── 批次模擬 ───────────
-const STAT_KIND = { summon: '召喚', acquire: '取得', spell: '魔法', trap: '陷阱', effect: '效果' };
+const STAT_KIND = { summon: '召喚', acquire: '取得', spell: '魔法', trap: '陷阱', effect: '效果', trigger: '觸發' };
 const STAT_NAME = k => {
   const [a, b] = k.split(':');
   if (b && STAT_KIND[a]) return `${STAT_KIND[a]} ${b}`;
-  return { ambush: '對方回合召喚', battle: '戰鬥', direct: '直接攻擊', negate: '無效', returned: '退回的牌', steal: '搶牌' }[k] || k;
+  return { ambush: '對方回合召喚', battle: '戰鬥', direct: '直接攻擊', negate: '無效', returned: '退回的命牌', steal: '搶牌' }[k] || k;
 };
 function openSim() {
   loadCfg();
+  const opts = sel => deckNames().map(n => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('');
   openModal({ title: '批次模擬', desc: '兩個 AI 用目前的規則設定對打很多局。AI 很簡單，數字只能看方向。', dismissable: true,
-    body: `<div class="row"><label for="simN">局數</label><input id="simN" class="field" type="number" min="50" max="10000" value="1000" style="width:7em"><span id="simProg" class="note" style="margin:0"></span></div><div id="simOut"></div>`,
+    body: `<div class="form"><label for="simA">先手牌組</label><select id="simA" class="field">${opts(LS.get('cg-deck-me', '標準'))}</select>
+      <label for="simB">後手牌組</label><select id="simB" class="field">${opts(LS.get('cg-deck-ai', '標準'))}</select>
+      <label for="simN">局數</label><input id="simN" class="field" type="number" min="50" max="10000" value="1000" style="width:7em"></div>
+      <p id="simProg" class="note"></p><div id="simOut"></div>`,
     buttons: [{ label: '關閉', onClick: closeModal }, { label: '開始', primary: true, id: 'simGo', onClick: runSim }] });
 }
 async function runSim() {
   const n = Math.min(10000, Math.max(50, parseInt($('#simN').value, 10) || 1000));
   $('#simGo').disabled = true;
   loadCfg();
-  const r = await E.simulate(n, randSeed(), async done => { $('#simProg').textContent = `${done} / ${n}`; await new Promise(res => setTimeout(res, 0)); });
+  const decks = [deckByName($('#simA').value), deckByName($('#simB').value)];
+  const r = await E.simulate(n, randSeed(), async done => { $('#simProg').textContent = `${done} / ${n}`; await new Promise(res => setTimeout(res, 0)); }, decks);
   const dec = r.wins[0] + r.wins[1];
   const pct = x => (dec ? (x / dec * 100).toFixed(1) : '0') + '%';
   const rows = [['先手勝率', pct(r.wins[0])], ['後手勝率', pct(r.wins[1])], ['平手', r.draws],
     ['平均回合', r.avgTurns.toFixed(1)], ['回合中位數', r.medTurns], ['最長', r.maxTurns],
     ...Object.entries(r.reasons).map(([k, v]) => ['勝因：' + k, v]),
     ...Object.keys(r.byHp).sort((a, b) => a - b).map(hp => { const c = r.byHp[hp]; const t = c[0] + c[1]; return [`HP ${hp} 先手勝率`, t ? (c[0] / t * 100).toFixed(0) + '%（' + t + ' 局）' : '—']; }),
-    ...Object.entries(r.stats).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => ['每局平均 ' + STAT_NAME(k), (v / n).toFixed(2)])];
+    ...Object.entries(r.stats).sort((a, b) => b[1] - a[1]).slice(0, 16).map(([k, v]) => ['每局平均 ' + STAT_NAME(k), (v / n).toFixed(2)])];
   $('#simOut').innerHTML = `<table class="stats-table">${rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table>`;
   $('#simProg').textContent = '完成';
   $('#simGo').disabled = false;
@@ -2348,7 +2870,7 @@ function menuTrack() {
   let h = '';
   for (let i = 0; i < 9; i++) {
     const c = filled[i];
-    const inner = !c ? '' : c[0] === 0 ? '<span class="pk jk mini"><b>JK</b></span>'
+    const inner = !c ? '' : c[0] === 0 ? '<span class="pk jk mini"><b>鬼</b></span>'
       : `<span class="pk mini ${E.RED.has(c[1]) ? 'red' : ''}"><b>${E.rankStr(c[0])}</b><i>${c[1]}</i></span>`;
     h += `<span class="sock${i === 8 ? ' goal' : ''}">${inner}</span>`;
   }
@@ -2359,6 +2881,14 @@ function init() {
   $('#speed').value = app.speed;
   $('#speed').onchange = e => { app.speed = e.target.value; LS.set('cg-speed', app.speed); };
   $('#nameInput').onchange = () => LS.set('cg-name', myName());
+  $('#deckMe').onchange = e => LS.set('cg-deck-me', e.target.value);
+  $('#deckAI').onchange = e => LS.set('cg-deck-ai', e.target.value);
+  $('#btnBuilder').onclick = openBuilder;
+  $('#bList').addEventListener('click', builderClick);
+  $('#bLoad').onclick = () => { app.builder.counts = countOf(deckByName($('#bBase').value)); renderBuilder(); };
+  $('#bClear').onclick = () => { app.builder.counts = {}; renderBuilder(); };
+  $('#bSave').onclick = saveBuilder;
+  $('#bBack').onclick = () => showScreen('menu');
   $('#btnAI').onclick = startVsAI;
   $('#btnWatch').onclick = startWatch;
   $('#btnHost').onclick = openHost;
@@ -2392,7 +2922,7 @@ function init() {
   window.addEventListener('resize', repos);
   window.addEventListener('scroll', repos, true);
   window.addEventListener('pagehide', () => { if (app.session) app.session.close(); });   // 關掉分頁時通知對手
-  menuTrack(); updateRecCount(); loadCfg();
+  menuTrack(); updateRecCount(); loadCfg(); fillDeckSelects();
   const room = params.get('room');
   if (room) { $('#codeInput').value = room.toUpperCase(); setTimeout(() => openJoin(room), 300); }
 }

@@ -280,7 +280,7 @@ button.pk, button.gc { padding: 0; }
       <input id="codeInput" class="field code" maxlength="5" placeholder="代碼" aria-label="房間代碼">
       <button id="btnJoin" class="btn">加入房間</button>
     </div>
-    <p class="note">開房間後把代碼或邀請連結傳給朋友，兩人在不同電腦上對戰。線上對戰用房主的規則設定。</p>
+    <p class="note">開房間後把代碼或邀請連結傳給朋友，兩人在不同電腦上對戰。線上對戰用房主的規則設定。連不上時可以先 <button id="btnConnTest" class="linkbtn">測試連線</button>。</p>
   </section>
 
   <section class="menu-group">
@@ -391,7 +391,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -2421,10 +2421,37 @@ class MemTransport {
   close() { this.other.ch.forEach(f => f()); }
 }
 
+// STUN 找對外位址；TURN 在雙方網路都比較嚴格時幫忙轉送。可以在「測試連線」裡加自己的 TURN（存在瀏覽器）
+const STUN = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'];
+function iceServers() {
+  const list = [{ urls: STUN }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }];
+  try { const t = JSON.parse(root.localStorage.getItem('cg-turn') || 'null'); if (t && t.urls && t.urls.length) list.push(t); } catch (e) {}
+  return list;
+}
+const peerOpts = () => ({ debug: 1, config: { iceServers: iceServers(), sdpSemantics: 'unified-plan' } });
+// 測試這個網路拿得到哪些連線候選：host（區網）、srflx（STUN 對外位址）、relay（TURN 中繼）
+function iceProbe(ms = 8000) {
+  return new Promise(resolve => {
+    const found = { host: 0, srflx: 0, relay: 0 };
+    let pc;
+    try { pc = new root.RTCPeerConnection({ iceServers: iceServers() }); } catch (e) { resolve(found); return; }
+    let ended = false;
+    const end = () => { if (ended) return; ended = true; clearTimeout(t); try { pc.close(); } catch (e) {} resolve(found); };
+    const t = setTimeout(end, ms);
+    pc.onicecandidate = e => {
+      if (!e.candidate) { end(); return; }
+      const m = / typ (\w+)/.exec(e.candidate.candidate || '');
+      if (m && m[1] in found) found[m[1]]++;
+    };
+    pc.createDataChannel('probe');
+    pc.createOffer().then(o => pc.setLocalDescription(o)).catch(end);
+  });
+}
+
 function peerErrMsg(e) {
   const t = e && e.type;
   return ({
-    'peer-unavailable': '找不到這個房間：代碼可能打錯，或房主已經關掉網頁。',
+    'peer-unavailable': '找不到這個房間：代碼可能打錯、房主已經關掉網頁，或房主的手機切到別的 App 太久（網頁會被暫停）。請房主回到網頁、必要時重新開房。',
     'network': '連不上配對伺服器，請檢查網路。',
     'browser-incompatible': '這個瀏覽器不支援線上對戰，請改用 Chrome、Edge 或 Firefox。',
     'server-error': '配對伺服器暫時有問題，稍後再試。',
@@ -2433,7 +2460,8 @@ function peerErrMsg(e) {
   })[t] || ('連線錯誤：' + ((e && e.message) || t || '未知'));
 }
 
-function host({ local, onCode, onConnected, onError }) {
+function host({ local, onCode, onConnected, onError, onStatus }) {
+  const status = t => { if (onStatus) onStatus(t); };
   const code = genCode();
   if (local) {
     const t = new BCTransport(code, 'host');
@@ -2441,27 +2469,42 @@ function host({ local, onCode, onConnected, onError }) {
     return { cancel() { t.close(); } };
   }
   if (typeof root.Peer === 'undefined') { setTimeout(() => onError('連線元件沒有載入。'), 0); return { cancel() {} }; }
-  const handle = { peer: null, cancel() { if (this.peer) this.peer.destroy(); } };
-  const peer = new root.Peer(PREFIX + code, { debug: 1 });
-  handle.peer = peer;
-  let connected = false;
-  peer.on('open', () => onCode(code));
+  const peer = new root.Peer(PREFIX + code, peerOpts());
+  let connected = false, opened = false, tries = 0;
+  const doc = root.document;
+  const retry = () => {   // 重新向配對伺服器登記同一個代碼
+    if (connected || peer.destroyed) return;
+    if (tries++ >= 6) { onError('和配對伺服器斷線，重連失敗。請檢查網路後重新開房。'); return; }
+    status('和配對伺服器斷線了，重新連線中…（等對手時請讓這個網頁保持在前景）');
+    setTimeout(() => { if (!connected && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 1500 * tries);
+  };
+  const vis = () => { if (doc && doc.visibilityState === 'visible' && opened && !connected && !peer.destroyed && peer.disconnected) { tries = 0; peer.reconnect(); } };
+  if (doc) doc.addEventListener('visibilitychange', vis);
+  const handle = { peer, cancel() { if (doc) doc.removeEventListener('visibilitychange', vis); peer.destroy(); } };
+  peer.on('open', () => {
+    if (!opened) { opened = true; onCode(code); } else { tries = 0; status('已重新連上配對伺服器，房間還在，等待對手加入…'); }
+  });
+  peer.on('disconnected', () => { if (opened && !connected) retry(); });
   peer.on('connection', conn => {
     if (connected) { conn.on('open', () => conn.close()); return; }
-    connected = true;
-    conn.on('open', () => onConnected(new PeerTransport(conn)));
+    status('對手正在連進來…');
+    conn.on('open', () => { if (connected) { conn.close(); return; } connected = true; if (doc) doc.removeEventListener('visibilitychange', vis); onConnected(new PeerTransport(conn)); });
   });
   peer.on('error', e => {
-    if (e.type === 'unavailable-id' && !connected) {        // 代碼撞到了，換一個
-      peer.destroy();
-      const h2 = host({ local, onCode, onConnected, onError });
+    if (connected) return;
+    if (e.type === 'unavailable-id' && !opened) {        // 代碼撞到了，換一個
+      handle.cancel();
+      const h2 = host({ local, onCode, onConnected, onError, onStatus });
       handle.cancel = () => h2.cancel();
-    } else if (!(connected && e.type === 'disconnected')) onError(peerErrMsg(e));
+    } else if (opened && ['unavailable-id', 'network', 'disconnected', 'server-error', 'socket-error', 'socket-closed'].includes(e.type)) {
+      retry();   // 房間已經開好：先試著重連，不要直接失敗
+    } else if (e.type !== 'peer-unavailable') onError(peerErrMsg(e));
   });
   return handle;
 }
 
-function join({ code, local, onConnected, onError }) {
+function join({ code, local, onConnected, onError, onStatus }) {
+  const status = t => { if (onStatus) onStatus(t); };
   code = String(code || '').trim().toUpperCase();
   if (local) {
     const t = new BCTransport(code, 'guest-' + Math.random());
@@ -2469,19 +2512,29 @@ function join({ code, local, onConnected, onError }) {
     return { cancel() { t.close(); } };
   }
   if (typeof root.Peer === 'undefined') { setTimeout(() => onError('連線元件沒有載入。'), 0); return { cancel() {} }; }
-  const peer = new root.Peer({ debug: 1 });
-  let done = false;
-  const timer = setTimeout(() => { if (!done) { done = true; onError('15 秒內連不上房間。確認代碼正確、房主還開著網頁，再試一次。'); } }, 15000);
+  const peer = new root.Peer(peerOpts());
+  let done = false, stage = 'server', ice = '';
+  const why = () => stage === 'server'
+    ? '連不上配對伺服器：這個網路可能擋住了，或伺服器暫時有問題。可以先按「測試連線」看看。'
+    : !ice ? '房主沒有回應：請房主確認網頁還開著、在前景（手機不要切到別的 App 或鎖螢幕），再試一次；不行就請房主重新開房。'
+      : '找到房間了，但兩台裝置之間的連線被網路擋住（常見於學校、公司的 Wi-Fi 或手機網路）。請其中一方換網路（例如改用手機熱點）再試，或兩邊都按「測試連線」看看。';
+  const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (e) {} onError(msg); };
+  const timer = setTimeout(() => fail(why()), 20000);
   peer.on('open', () => {
+    stage = 'room'; status(`已連上配對伺服器，正在找房間 ${code}…`);
     const conn = peer.connect(PREFIX + code, { serialization: 'json', reliable: true });
+    conn.on('iceStateChanged', st => {
+      ice = st; status(`找到房間，正在建立連線（${st}）…`);
+      if (st === 'failed') fail(why());
+    });
     conn.on('open', () => { if (done) return; done = true; clearTimeout(timer); onConnected(new PeerTransport(conn)); });
-    conn.on('error', e => { if (!done) { done = true; clearTimeout(timer); onError(peerErrMsg(e)); } });
+    conn.on('error', e => fail(peerErrMsg(e)));
   });
-  peer.on('error', e => { if (!done) { done = true; clearTimeout(timer); onError(peerErrMsg(e)); } });
-  return { cancel() { clearTimeout(timer); peer.destroy(); } };
+  peer.on('error', e => fail(peerErrMsg(e)));
+  return { cancel() { done = true; clearTimeout(timer); peer.destroy(); } };
 }
 
-const api = { Session, RemoteAgent, NetLocalAgent, DesyncError, PeerTransport, BCTransport, MemTransport, host, join, genCode };
+const api = { Session, RemoteAgent, NetLocalAgent, DesyncError, PeerTransport, BCTransport, MemTransport, host, join, genCode, iceServers, peerOpts, iceProbe };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 root.CardNet = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -3293,7 +3346,49 @@ function leaveGame(force) {
 function lobbyError(msg) {
   if (app.lobby) { app.lobby.cancel(); app.lobby = null; }
   app.session = null;
-  openModal({ title: '連線失敗', desc: msg, buttons: [{ label: '關閉', primary: true, onClick: closeModal }], dismissable: true });
+  openModal({ title: '連線失敗', desc: msg, dismissable: true,
+    buttons: [{ label: '測試連線', onClick: () => connTest() }, { label: '關閉', primary: true, onClick: closeModal }] });
+}
+// 測試這個網路能不能線上對戰：配對伺服器、STUN、TURN
+async function connTest() {
+  const turn = LS.get('cg-turn', null) || {};
+  openModal({ title: '測試連線', desc: '檢查這個網路能不能線上對戰，大約 10 秒。請對手也測一次，比較兩邊的結果。', dismissable: true,
+    body: `<div id="ctOut" class="note" style="line-height:1.9">測試中…</div>
+      <details style="margin-top:12px"><summary>進階：自訂 TURN 伺服器</summary>
+        <p class="note">雙方網路都很嚴格時，需要 TURN 伺服器幫忙轉送。可以到 TURN 服務商（例如 Metered、Cloudflare）申請免費帳號，把網址和帳密填在這裡（存在這個瀏覽器，雙方填一邊就有機會）。</p>
+        <div class="form"><label for="turnUrls">網址（用逗號分開）</label><input id="turnUrls" class="field" placeholder="turn:example.com:443?transport=tcp" value="${esc((turn.urls || []).join(', '))}">
+        <label for="turnUser">帳號</label><input id="turnUser" class="field" value="${esc(turn.username || '')}">
+        <label for="turnPass">密碼</label><input id="turnPass" class="field" value="${esc(turn.credential || '')}"></div>
+        <div class="btns" style="margin-top:8px"><button class="btn" id="turnSave">儲存並重新測試</button></div>
+      </details>`,
+    buttons: [{ label: '關閉', primary: true, onClick: closeModal }] });
+  $('#turnSave').onclick = () => {
+    const urls = $('#turnUrls').value.split(',').map(x => x.trim()).filter(Boolean);
+    LS.set('cg-turn', urls.length ? { urls, username: $('#turnUser').value.trim(), credential: $('#turnPass').value.trim() } : null);
+    connTest();
+  };
+  const out = $('#ctOut'), lines = [];
+  const show = extra => { if (out.isConnected) out.innerHTML = lines.join('<br>') + (extra ? '<br>' + extra : ''); };
+  let server = false;
+  if (typeof Peer !== 'undefined') {
+    server = await new Promise(res => {
+      let p = null;
+      const t = setTimeout(() => { try { p && p.destroy(); } catch (e) {} res(false); }, 8000);
+      try {
+        p = new Peer(N.peerOpts());
+        p.on('open', () => { clearTimeout(t); p.destroy(); res(true); });
+        p.on('error', () => { clearTimeout(t); try { p.destroy(); } catch (e) {} res(false); });
+      } catch (e) { clearTimeout(t); res(false); }
+    });
+  }
+  lines.push(`${server ? '✓' : '✗'} 配對伺服器`); show('檢查直接連線…');
+  const f = await N.iceProbe(8000);
+  lines.push(`${f.srflx ? '✓' : '✗'} 對外位址（STUN）`, `${f.relay ? '✓' : '✗'} 中繼伺服器（TURN）`);
+  const verdict = !server ? '連不上配對伺服器：這個網路可能擋住了，或伺服器暫時有問題。換個網路（例如手機熱點）再試。'
+    : f.relay ? '這個網路應該可以線上對戰。'
+      : f.srflx ? '大部分情況可以連。如果雙方都在比較嚴格的網路（學校、公司 Wi-Fi、手機網路），可能會連不上，需要 TURN。'
+        : '這個網路擋住了直接連線，很可能沒辦法線上對戰。請換網路（例如手機熱點）。';
+  show(`<b>${verdict}</b>`);
 }
 function cancelLobby() {
   if (app.session) { app.session.close(); app.session = null; }
@@ -3309,9 +3404,12 @@ function openHost() {
       app.roomCode = code;
       const link = location.origin + location.pathname + '?room=' + code + (LOCAL ? '&local=1' : '');
       $('#mDesc').textContent = '把代碼或邀請連結傳給朋友，對方加入後會自動開始。';
-      $('#mBody').innerHTML = `<div class="code-big">${code}</div><div class="row"><input class="field" id="inviteLink" readonly value="${esc(link)}" style="flex:1;min-width:0"><button class="btn" id="copyLink">複製連結</button></div><p class="note" id="hostWait">等待對手加入…</p>`;
+      $('#mBody').innerHTML = `<div class="code-big">${code}</div><div class="row"><input class="field" id="inviteLink" readonly value="${esc(link)}" style="flex:1;min-width:0"><button class="btn" id="copyLink">複製連結</button></div>
+        <p class="note" id="hostWait">等待對手加入…</p>
+        <p class="note">建議直接傳邀請連結（對方點開就會自動加入，不用打代碼）。等待時請讓這個網頁保持開著、在前景；手機切到別的 App 或鎖螢幕，網頁可能會被暫停，對方就連不進來。</p>`;
       $('#copyLink').onclick = () => copyText(link);
     },
+    onStatus: t => { const el = $('#hostWait'); if (el) el.textContent = t; },
     onConnected: t => setupSession(t, true),
     onError: msg => lobbyError(msg)
   });
@@ -3321,7 +3419,8 @@ function openJoin(code) {
   if (code.length !== 5) { toast('請輸入 5 碼的房間代碼'); $('#codeInput').focus(); return; }
   app.name = myName(); LS.set('cg-name', app.name); app.roomCode = code;
   openModal({ title: '加入房間', desc: `連線到房間 ${code}…`, buttons: [{ label: '取消', onClick: cancelLobby }] });
-  app.lobby = N.join({ code, local: LOCAL, onConnected: t => setupSession(t, false), onError: msg => lobbyError(msg) });
+  app.lobby = N.join({ code, local: LOCAL, onConnected: t => setupSession(t, false), onError: msg => lobbyError(msg),
+    onStatus: t => { if (app.lobby) $('#mDesc').textContent = t; } });
 }
 function setupSession(t, isHost) {
   const s = new N.Session(t);
@@ -3544,6 +3643,7 @@ function menuTrack() {
   $('#menuTrack').innerHTML = h;
 }
 function init() {
+  const brand = document.querySelector('.brand small'); if (brand) brand.textContent = `測試版 v${E.VERSION}`;   // 看得出網頁是不是最新版
   $('#nameInput').value = app.name;
   $('#speed').value = app.speed;
   $('#speed').onchange = e => { app.speed = e.target.value; LS.set('cg-speed', app.speed); };
@@ -3562,6 +3662,7 @@ function init() {
   $('#btnWatch').onclick = startWatch;
   $('#btnHost').onclick = openHost;
   $('#btnJoin').onclick = () => openJoin($('#codeInput').value);
+  $('#btnConnTest').onclick = () => connTest();
   $('#codeInput').onkeydown = e => { if (e.key === 'Enter') openJoin($('#codeInput').value); };
   $('#btnSim').onclick = openSim;
   $('#btnSettings').onclick = openSettings;

@@ -391,7 +391,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.2';
+const VERSION = '0.7.3';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -2453,7 +2453,37 @@ function iceServers() {
   const t = customTurn(); if (t) list.push(t);
   return list;
 }
-const peerOpts = () => ({ debug: 1, config: { iceServers: iceServers(), sdpSemantics: 'unified-plan' } });
+// ── 診斷紀錄：連線每一步發生了什麼（「複製診斷資訊」用） ──
+const diag = []; let diagT0 = Date.now();
+function note(s) { diag.push(`${((Date.now() - diagT0) / 1000).toFixed(1)}s ${s}`); if (diag.length > 500) diag.shift(); }
+function diagReset(title) { diag.length = 0; diagT0 = Date.now(); note(title); }
+function diagText() {
+  const v = root.CardEngine ? root.CardEngine.VERSION : '?', ua = root.navigator ? root.navigator.userAgent : '';
+  return [`新卡牌遊戲 v${v}`, ua, `中繼：${iceServers().map(x => [].concat(x.urls)[0]).join('、')}`, ...diag].join('\n');
+}
+const show = x => { if (typeof x === 'string') return x; try { return JSON.stringify(x); } catch (e) { return String(x); } };
+const candType = c => {
+  const str = typeof c === 'string' ? c : (c && c.candidate) || '';
+  const m = / typ (\w+)/.exec(str), pr = / (udp|tcp) /i.exec(str);
+  return (m ? m[1] : '?') + (pr ? '/' + pr[1].toLowerCase() : '');
+};
+function watchPc(conn, who) {
+  const pc = conn.peerConnection;
+  if (!pc) { note(`${who}：沒有 RTCPeerConnection`); return; }
+  pc.addEventListener('icecandidate', e => note(e.candidate ? `本機候選 ${candType(e.candidate)}` : '本機候選收集完畢'));
+  pc.addEventListener('icegatheringstatechange', () => note('收集狀態 ' + pc.iceGatheringState));
+  pc.addEventListener('iceconnectionstatechange', () => note('ICE 狀態 ' + pc.iceConnectionState));
+  pc.addEventListener('connectionstatechange', () => note('連線狀態 ' + pc.connectionState));
+  pc.addEventListener('signalingstatechange', () => note('信令狀態 ' + pc.signalingState));
+  const add = pc.addIceCandidate.bind(pc);
+  pc.addIceCandidate = c => { note('收到對方候選 ' + candType(c)); return add(c).catch(err => { note('加入對方候選失敗 ' + err); throw err; }); };
+}
+const peerLog = (lvl, ...a) => {
+  const t = a.map(show).join(' ');
+  if (/credential/i.test(t)) return;
+  note('PeerJS ' + t.replace(/\s+/g, ' ').slice(0, 160));
+};
+const peerOpts = () => ({ debug: 2, logFunction: peerLog, config: { iceServers: iceServers(), sdpSemantics: 'unified-plan' } });
 // 各組伺服器分開測，給「測試連線」用
 function iceGroups() {
   const g = [['stun', '對外位址（STUN）', [STUN]], ['peerjs', '中繼：PeerJS（3478 埠）', [PEERJS_TURN]]];
@@ -2514,6 +2544,7 @@ function host({ local, onCode, onConnected, onError, onStatus }) {
     return { cancel() { t.close(); } };
   }
   if (typeof root.Peer === 'undefined') { setTimeout(() => onError('連線元件沒有載入。'), 0); return { cancel() {} }; }
+  diagReset(`開房 ${code}`);
   const peer = new root.Peer(PREFIX + code, peerOpts());
   let connected = false, opened = false, tries = 0;
   const doc = root.document;
@@ -2527,18 +2558,23 @@ function host({ local, onCode, onConnected, onError, onStatus }) {
   if (doc) doc.addEventListener('visibilitychange', vis);
   const handle = { peer, cancel() { if (doc) doc.removeEventListener('visibilitychange', vis); peer.destroy(); } };
   peer.on('open', () => {
+    note('已連上配對伺服器');
     if (!opened) { opened = true; onCode(code); } else { tries = 0; status('已重新連上配對伺服器，房間還在，等待對手加入…'); }
   });
-  peer.on('disconnected', () => { if (opened && !connected) retry(); });
+  peer.on('disconnected', () => { note('和配對伺服器斷線'); if (opened && !connected) retry(); });
   peer.on('connection', conn => {
     if (connected) { conn.on('open', () => conn.close()); return; }
     status('對手正在連進來…');
+    note('對手連進來：' + conn.peer); watchPc(conn, '房主');
+    conn.on('error', e => note('連線錯誤 ' + (e && (e.type || e.message))));
+    conn.on('close', () => note('連線關閉'));
     conn.on('iceStateChanged', st => {
       if (st === 'failed' && !connected) candStats(conn).then(d => status('對手的連線被網路擋住了，請對手換網路或兩邊都按「測試連線」。房間還開著，可以再試。' + d));
     });
-    conn.on('open', () => { if (connected) { conn.close(); return; } connected = true; if (doc) doc.removeEventListener('visibilitychange', vis); onConnected(new PeerTransport(conn)); });
+    conn.on('open', () => { note('資料通道打開'); if (connected) { conn.close(); return; } connected = true; if (doc) doc.removeEventListener('visibilitychange', vis); onConnected(new PeerTransport(conn)); });
   });
   peer.on('error', e => {
+    note('錯誤 ' + e.type + ' ' + (e.message || ''));
     if (connected) return;
     if (e.type === 'unavailable-id' && !opened) {        // 代碼撞到了，換一個
       handle.cancel();
@@ -2560,6 +2596,7 @@ function join({ code, local, onConnected, onError, onStatus }) {
     return { cancel() { t.close(); } };
   }
   if (typeof root.Peer === 'undefined') { setTimeout(() => onError('連線元件沒有載入。'), 0); return { cancel() {} }; }
+  diagReset(`加入房間 ${code}`);
   const peer = new root.Peer(peerOpts());
   let done = false, stage = 'server', ice = '';
   const why = () => stage === 'server'
@@ -2569,6 +2606,7 @@ function join({ code, local, onConnected, onError, onStatus }) {
   let conn = null;
   const fail = async msg => {
     if (done) return; done = true; clearTimeout(timer);
+    note('失敗：' + msg);
     const d = conn && ice ? await candStats(conn) : '';
     try { peer.destroy(); } catch (e) {}
     onError(msg + d);
@@ -2576,19 +2614,22 @@ function join({ code, local, onConnected, onError, onStatus }) {
   const timer = setTimeout(() => fail(why()), 30000);
   peer.on('open', () => {
     stage = 'room'; status(`已連上配對伺服器，正在找房間 ${code}…`);
+    note('已連上配對伺服器，連向房間');
     conn = peer.connect(PREFIX + code, { serialization: 'json', reliable: true });
+    watchPc(conn, '加入方');
+    conn.on('close', () => note('連線關閉'));
     conn.on('iceStateChanged', st => {
       ice = st; status(`找到房間，正在建立連線（${st}）…`);
       if (st === 'failed') fail(why());
     });
-    conn.on('open', () => { if (done) return; done = true; clearTimeout(timer); onConnected(new PeerTransport(conn)); });
-    conn.on('error', e => fail(peerErrMsg(e)));
+    conn.on('open', () => { note('資料通道打開'); if (done) return; done = true; clearTimeout(timer); onConnected(new PeerTransport(conn)); });
+    conn.on('error', e => { note('連線錯誤 ' + (e && (e.type || e.message))); fail(peerErrMsg(e)); });
   });
-  peer.on('error', e => fail(peerErrMsg(e)));
+  peer.on('error', e => { note('錯誤 ' + e.type + ' ' + (e.message || '')); fail(peerErrMsg(e)); });
   return { cancel() { done = true; clearTimeout(timer); peer.destroy(); } };
 }
 
-const api = { Session, RemoteAgent, NetLocalAgent, DesyncError, PeerTransport, BCTransport, MemTransport, host, join, genCode, iceServers, peerOpts, iceProbe, prepareIce, iceGroups };
+const api = { Session, RemoteAgent, NetLocalAgent, DesyncError, PeerTransport, BCTransport, MemTransport, host, join, genCode, iceServers, peerOpts, iceProbe, prepareIce, iceGroups, diagText, note };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 root.CardNet = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -2651,8 +2692,13 @@ function download(name, obj) {
 }
 const stamp = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`; };
 function copyText(text) {
-  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('已複製'), () => toast('請手動複製'));
-  else toast('請手動複製');
+  const manual = () => {   // 瀏覽器不讓複製時：顯示文字讓人手動複製
+    openModal({ title: '請手動複製', body: `<textarea class="field" id="copyBox" readonly style="width:100%;height:240px;font-size:12px">${esc(text)}</textarea>`,
+      buttons: [{ label: '關閉', primary: true, onClick: closeModal }], dismissable: true });
+    const b = $('#copyBox'); b.focus(); b.select();
+  };
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('已複製'), manual);
+  else manual();
 }
 
 // ─────────── 牌組 ───────────
@@ -3401,7 +3447,7 @@ function lobbyError(msg) {
   if (app.lobby) { app.lobby.cancel(); app.lobby = null; }
   app.session = null;
   openModal({ title: '連線失敗', desc: msg, dismissable: true,
-    buttons: [{ label: '測試連線', onClick: () => connTest() }, { label: '關閉', primary: true, onClick: closeModal }] });
+    buttons: [{ label: '複製診斷資訊', onClick: () => copyText(N.diagText()) }, { label: '測試連線', onClick: () => connTest() }, { label: '關閉', primary: true, onClick: closeModal }] });
 }
 // 測試這個網路能不能線上對戰：配對伺服器、STUN、TURN
 async function connTest() {
@@ -3450,6 +3496,7 @@ async function connTest() {
       : srflx ? '中繼伺服器都連不到。雙方網路都比較嚴格（學校、公司 Wi-Fi、手機網路）時可能會連不上，需要能用的 TURN。'
         : '這個網路擋住了直接連線，很可能沒辦法線上對戰。請換網路（例如手機熱點）。';
   show(`<b>${verdict}</b>`);
+  N.note('測試連線：' + lines.join('，'));
 }
 function cancelLobby() {
   app.lobbyToken = null;
@@ -3472,8 +3519,10 @@ function startHost() {
       $('#mDesc').textContent = '把代碼或邀請連結傳給朋友，對方加入後會自動開始。';
       $('#mBody').innerHTML = `<div class="code-big">${code}</div><div class="row"><input class="field" id="inviteLink" readonly value="${esc(link)}" style="flex:1;min-width:0"><button class="btn" id="copyLink">複製連結</button></div>
         <p class="note" id="hostWait">等待對手加入…</p>
+        <p class="note"><button class="linkbtn" id="hostDiag">複製診斷資訊</button>（連不上時，兩邊都按一下，貼給開發者）</p>
         <p class="note">建議直接傳邀請連結（對方點開就會自動加入，不用打代碼）。等待時請讓這個網頁保持開著、在前景；手機切到別的 App 或鎖螢幕，網頁可能會被暫停，對方就連不進來。</p>`;
       $('#copyLink').onclick = () => copyText(link);
+      $('#hostDiag').onclick = () => copyText(N.diagText());
     },
     onStatus: t => { const el = $('#hostWait'); if (el) el.textContent = t; },
     onConnected: t => setupSession(t, true),

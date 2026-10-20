@@ -391,7 +391,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.1';
+const VERSION = '0.7.2';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -2421,20 +2421,52 @@ class MemTransport {
   close() { this.other.ch.forEach(f => f()); }
 }
 
-// STUN 找對外位址；TURN 在雙方網路都比較嚴格時幫忙轉送。可以在「測試連線」裡加自己的 TURN（存在瀏覽器）
-const STUN = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'];
+// STUN 找對外位址；TURN 在網路比較嚴格時幫忙轉送
+// - PeerJS 內建的免費 TURN（3478 埠）
+// - Metered 的 Open Relay（80／443 埠，比較容易穿過學校、公司的防火牆）：用它公開的 secret 產生 24 小時有效的帳密
+// - 自己在「測試連線」填的 TURN（存在瀏覽器）
+const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
+const PEERJS_TURN = { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' };
+const OPEN_RELAY = { host: 'staticauth.openrelay.metered.ca', secret: 'openrelayprojectsecret' };
+let openRelay = null, openRelayAt = 0;
+async function prepareIce() {
+  if (openRelay !== null && Date.now() - openRelayAt < 12 * 3600 * 1000) return;
+  try {
+    const subtle = root.crypto && root.crypto.subtle;
+    if (!subtle) { openRelay = false; return; }
+    const enc = new TextEncoder();
+    const username = `${Math.floor(Date.now() / 1000) + 24 * 3600}:pkcg`;
+    const key = await subtle.importKey('raw', enc.encode(OPEN_RELAY.secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const sig = new Uint8Array(await subtle.sign('HMAC', key, enc.encode(username)));
+    const credential = root.btoa(String.fromCharCode.apply(null, sig));
+    const h = OPEN_RELAY.host;
+    openRelay = { urls: [`turn:${h}:80`, `turn:${h}:80?transport=tcp`, `turn:${h}:443`, `turn:${h}:443?transport=tcp`], username, credential };
+    openRelayAt = Date.now();
+  } catch (e) { openRelay = false; }
+}
+function customTurn() {
+  try { const t = JSON.parse(root.localStorage.getItem('cg-turn') || 'null'); return t && t.urls && t.urls.length ? t : null; } catch (e) { return null; }
+}
 function iceServers() {
-  const list = [{ urls: STUN }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }];
-  try { const t = JSON.parse(root.localStorage.getItem('cg-turn') || 'null'); if (t && t.urls && t.urls.length) list.push(t); } catch (e) {}
+  const list = [STUN, PEERJS_TURN];
+  if (openRelay) list.push(openRelay);
+  const t = customTurn(); if (t) list.push(t);
   return list;
 }
 const peerOpts = () => ({ debug: 1, config: { iceServers: iceServers(), sdpSemantics: 'unified-plan' } });
-// 測試這個網路拿得到哪些連線候選：host（區網）、srflx（STUN 對外位址）、relay（TURN 中繼）
-function iceProbe(ms = 8000) {
+// 各組伺服器分開測，給「測試連線」用
+function iceGroups() {
+  const g = [['stun', '對外位址（STUN）', [STUN]], ['peerjs', '中繼：PeerJS（3478 埠）', [PEERJS_TURN]]];
+  if (openRelay) g.push(['openrelay', '中繼：Open Relay（80／443 埠）', [openRelay]]);
+  const t = customTurn(); if (t) g.push(['custom', '中繼：自訂 TURN', [t]]);
+  return g;
+}
+// 測試拿得到哪些連線候選：host（區網）、srflx（STUN 對外位址）、relay（TURN 中繼）
+function iceProbe(ms = 8000, servers) {
   return new Promise(resolve => {
     const found = { host: 0, srflx: 0, relay: 0 };
     let pc;
-    try { pc = new root.RTCPeerConnection({ iceServers: iceServers() }); } catch (e) { resolve(found); return; }
+    try { pc = new root.RTCPeerConnection({ iceServers: servers || iceServers() }); } catch (e) { resolve(found); return; }
     let ended = false;
     const end = () => { if (ended) return; ended = true; clearTimeout(t); try { pc.close(); } catch (e) {} resolve(found); };
     const t = setTimeout(end, ms);
@@ -2446,6 +2478,19 @@ function iceProbe(ms = 8000) {
     pc.createDataChannel('probe');
     pc.createOffer().then(o => pc.setLocalDescription(o)).catch(end);
   });
+}
+// 連線失敗時，看雙方各拿到哪些候選（給除錯用）
+async function candStats(conn) {
+  const local = {}, remote = {};
+  try {
+    const rep = await conn.peerConnection.getStats();
+    rep.forEach(x => {
+      if (x.type === 'local-candidate') local[x.candidateType] = (local[x.candidateType] || 0) + 1;
+      if (x.type === 'remote-candidate') remote[x.candidateType] = (remote[x.candidateType] || 0) + 1;
+    });
+  } catch (e) { return ''; }
+  const f = o => Object.entries(o).map(([k, v]) => `${k}×${v}`).join(' ') || '無';
+  return `（診斷：這邊 ${f(local)}；對方 ${f(remote)}）`;
 }
 
 function peerErrMsg(e) {
@@ -2488,6 +2533,9 @@ function host({ local, onCode, onConnected, onError, onStatus }) {
   peer.on('connection', conn => {
     if (connected) { conn.on('open', () => conn.close()); return; }
     status('對手正在連進來…');
+    conn.on('iceStateChanged', st => {
+      if (st === 'failed' && !connected) candStats(conn).then(d => status('對手的連線被網路擋住了，請對手換網路或兩邊都按「測試連線」。房間還開著，可以再試。' + d));
+    });
     conn.on('open', () => { if (connected) { conn.close(); return; } connected = true; if (doc) doc.removeEventListener('visibilitychange', vis); onConnected(new PeerTransport(conn)); });
   });
   peer.on('error', e => {
@@ -2518,11 +2566,17 @@ function join({ code, local, onConnected, onError, onStatus }) {
     ? '連不上配對伺服器：這個網路可能擋住了，或伺服器暫時有問題。可以先按「測試連線」看看。'
     : !ice ? '房主沒有回應：請房主確認網頁還開著、在前景（手機不要切到別的 App 或鎖螢幕），再試一次；不行就請房主重新開房。'
       : '找到房間了，但兩台裝置之間的連線被網路擋住（常見於學校、公司的 Wi-Fi 或手機網路）。請其中一方換網路（例如改用手機熱點）再試，或兩邊都按「測試連線」看看。';
-  const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (e) {} onError(msg); };
-  const timer = setTimeout(() => fail(why()), 20000);
+  let conn = null;
+  const fail = async msg => {
+    if (done) return; done = true; clearTimeout(timer);
+    const d = conn && ice ? await candStats(conn) : '';
+    try { peer.destroy(); } catch (e) {}
+    onError(msg + d);
+  };
+  const timer = setTimeout(() => fail(why()), 30000);
   peer.on('open', () => {
     stage = 'room'; status(`已連上配對伺服器，正在找房間 ${code}…`);
-    const conn = peer.connect(PREFIX + code, { serialization: 'json', reliable: true });
+    conn = peer.connect(PREFIX + code, { serialization: 'json', reliable: true });
     conn.on('iceStateChanged', st => {
       ice = st; status(`找到房間，正在建立連線（${st}）…`);
       if (st === 'failed') fail(why());
@@ -2534,7 +2588,7 @@ function join({ code, local, onConnected, onError, onStatus }) {
   return { cancel() { done = true; clearTimeout(timer); peer.destroy(); } };
 }
 
-const api = { Session, RemoteAgent, NetLocalAgent, DesyncError, PeerTransport, BCTransport, MemTransport, host, join, genCode, iceServers, peerOpts, iceProbe };
+const api = { Session, RemoteAgent, NetLocalAgent, DesyncError, PeerTransport, BCTransport, MemTransport, host, join, genCode, iceServers, peerOpts, iceProbe, prepareIce, iceGroups };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 root.CardNet = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -3381,16 +3435,24 @@ async function connTest() {
       } catch (e) { clearTimeout(t); res(false); }
     });
   }
-  lines.push(`${server ? '✓' : '✗'} 配對伺服器`); show('檢查直接連線…');
-  const f = await N.iceProbe(8000);
-  lines.push(`${f.srflx ? '✓' : '✗'} 對外位址（STUN）`, `${f.relay ? '✓' : '✗'} 中繼伺服器（TURN）`);
+  lines.push(`${server ? '✓' : '✗'} 配對伺服器`); show('檢查 STUN 和中繼伺服器…');
+  await N.prepareIce();
+  const groups = N.iceGroups();
+  const res = await Promise.all(groups.map(([, , sv]) => N.iceProbe(8000, sv)));
+  let srflx = false, relay = false;
+  groups.forEach(([k, label], i) => {
+    const ok = k === 'stun' ? res[i].srflx > 0 : res[i].relay > 0;
+    if (k === 'stun') srflx = ok; else relay = relay || ok;
+    lines.push(`${ok ? '✓' : '✗'} ${label}`);
+  });
   const verdict = !server ? '連不上配對伺服器：這個網路可能擋住了，或伺服器暫時有問題。換個網路（例如手機熱點）再試。'
-    : f.relay ? '這個網路應該可以線上對戰。'
-      : f.srflx ? '大部分情況可以連。如果雙方都在比較嚴格的網路（學校、公司 Wi-Fi、手機網路），可能會連不上，需要 TURN。'
+    : relay ? '有可以用的中繼伺服器，就算網路比較嚴格也應該連得上。'
+      : srflx ? '中繼伺服器都連不到。雙方網路都比較嚴格（學校、公司 Wi-Fi、手機網路）時可能會連不上，需要能用的 TURN。'
         : '這個網路擋住了直接連線，很可能沒辦法線上對戰。請換網路（例如手機熱點）。';
   show(`<b>${verdict}</b>`);
 }
 function cancelLobby() {
+  app.lobbyToken = null;
   if (app.session) { app.session.close(); app.session = null; }
   if (app.lobby) { app.lobby.cancel(); app.lobby = null; }
   clearInterval(app.helloTimer); closeModal();
@@ -3398,6 +3460,10 @@ function cancelLobby() {
 function openHost() {
   app.name = myName(); LS.set('cg-name', app.name);
   openModal({ title: '開房間', desc: '連線到配對伺服器中…', buttons: [{ label: '取消', onClick: cancelLobby }] });
+  const token = app.lobbyToken = {};
+  N.prepareIce().then(() => { if (app.lobbyToken === token) startHost(); });
+}
+function startHost() {
   app.lobby = N.host({
     local: LOCAL,
     onCode: code => {
@@ -3419,8 +3485,11 @@ function openJoin(code) {
   if (code.length !== 5) { toast('請輸入 5 碼的房間代碼'); $('#codeInput').focus(); return; }
   app.name = myName(); LS.set('cg-name', app.name); app.roomCode = code;
   openModal({ title: '加入房間', desc: `連線到房間 ${code}…`, buttons: [{ label: '取消', onClick: cancelLobby }] });
+  const token = app.lobbyToken = {};
+  N.prepareIce().then(() => { if (app.lobbyToken !== token) return;
   app.lobby = N.join({ code, local: LOCAL, onConnected: t => setupSession(t, false), onError: msg => lobbyError(msg),
     onStatus: t => { if (app.lobby) $('#mDesc').textContent = t; } });
+  });
 }
 function setupSession(t, isHost) {
   const s = new N.Session(t);
@@ -3663,6 +3732,7 @@ function init() {
   $('#btnHost').onclick = openHost;
   $('#btnJoin').onclick = () => openJoin($('#codeInput').value);
   $('#btnConnTest').onclick = () => connTest();
+  N.prepareIce();
   $('#codeInput').onkeydown = e => { if (e.key === 'Enter') openJoin($('#codeInput').value); };
   $('#btnSim').onclick = openSim;
   $('#btnSettings').onclick = openSettings;

@@ -391,7 +391,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.3';
+const VERSION = '0.7.5';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -2429,7 +2429,23 @@ const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:
 const PEERJS_TURN = { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' };
 const OPEN_RELAY = { host: 'staticauth.openrelay.metered.ca', secret: 'openrelayprojectsecret' };
 let openRelay = null, openRelayAt = 0;
+const lsGet = k => { try { return JSON.parse(root.localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+let apiServers = null;   // 從 TURN 服務商的 API 網址拿到的伺服器（例如 Metered）
+async function fetchApiServers() {
+  const url = lsGet('cg-turn-api');
+  if (!url) { apiServers = null; return; }
+  if (apiServers && apiServers.url === url && Date.now() - apiServers.at < 6 * 3600 * 1000) return;
+  try {
+    const ctl = new root.AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+    const r = await root.fetch(url, { signal: ctl.signal }); clearTimeout(t);
+    const arr = await r.json();
+    if (!Array.isArray(arr)) throw new Error('回傳的不是伺服器清單');
+    apiServers = { url, at: Date.now(), list: arr.filter(x => x && x.urls) };
+    note(`從 API 拿到 ${apiServers.list.length} 組伺服器`);
+  } catch (e) { apiServers = null; note('從 API 拿 TURN 帳密失敗：' + (e && e.message)); }
+}
 async function prepareIce() {
+  await fetchApiServers();
   if (openRelay !== null && Date.now() - openRelayAt < 12 * 3600 * 1000) return;
   try {
     const subtle = root.crypto && root.crypto.subtle;
@@ -2444,13 +2460,16 @@ async function prepareIce() {
     openRelayAt = Date.now();
   } catch (e) { openRelay = false; }
 }
-function customTurn() {
-  try { const t = JSON.parse(root.localStorage.getItem('cg-turn') || 'null'); return t && t.urls && t.urls.length ? t : null; } catch (e) { return null; }
+function customTurn() {   // 自己填的 TURN：手動填的帳密＋API 網址拿到的
+  const out = [];
+  const t = lsGet('cg-turn'); if (t && t.urls && t.urls.length) out.push(t);
+  if (apiServers) out.push(...apiServers.list);
+  return out;
 }
 function iceServers() {
   const list = [STUN, PEERJS_TURN];
   if (openRelay) list.push(openRelay);
-  const t = customTurn(); if (t) list.push(t);
+  list.push(...customTurn());
   return list;
 }
 // ── 診斷紀錄：連線每一步發生了什麼（「複製診斷資訊」用） ──
@@ -2488,7 +2507,7 @@ const peerOpts = () => ({ debug: 2, logFunction: peerLog, config: { iceServers: 
 function iceGroups() {
   const g = [['stun', '對外位址（STUN）', [STUN]], ['peerjs', '中繼：PeerJS（3478 埠）', [PEERJS_TURN]]];
   if (openRelay) g.push(['openrelay', '中繼：Open Relay（80／443 埠）', [openRelay]]);
-  const t = customTurn(); if (t) g.push(['custom', '中繼：自訂 TURN', [t]]);
+  const c = customTurn(); if (c.length) g.push(['custom', '中繼：自訂 TURN', c]);
   return g;
 }
 // 測試拿得到哪些連線候選：host（區網）、srflx（STUN 對外位址）、relay（TURN 中繼）
@@ -2618,6 +2637,9 @@ function join({ code, local, onConnected, onError, onStatus }) {
     conn = peer.connect(PREFIX + code, { serialization: 'json', reliable: true });
     watchPc(conn, '加入方');
     conn.on('close', () => note('連線關閉'));
+    if (conn.peerConnection) conn.peerConnection.addEventListener('connectionstatechange', () => {
+      if (conn.peerConnection.connectionState === 'failed') { ice = ice || 'failed'; fail(why()); }
+    });
     conn.on('iceStateChanged', st => {
       ice = st; status(`找到房間，正在建立連線（${st}）…`);
       if (st === 'failed') fail(why());
@@ -3455,16 +3477,31 @@ async function connTest() {
   openModal({ title: '測試連線', desc: '檢查這個網路能不能線上對戰，大約 10 秒。請對手也測一次，比較兩邊的結果。', dismissable: true,
     body: `<div id="ctOut" class="note" style="line-height:1.9">測試中…</div>
       <details style="margin-top:12px"><summary>進階：自訂 TURN 伺服器</summary>
-        <p class="note">雙方網路都很嚴格時，需要 TURN 伺服器幫忙轉送。可以到 TURN 服務商（例如 Metered、Cloudflare）申請免費帳號，把網址和帳密填在這裡（存在這個瀏覽器，雙方填一邊就有機會）。</p>
-        <div class="form"><label for="turnUrls">網址（用逗號分開）</label><input id="turnUrls" class="field" placeholder="turn:example.com:443?transport=tcp" value="${esc((turn.urls || []).join(', '))}">
+        <p class="note">雙方網路都很嚴格時，需要 TURN 伺服器幫忙轉送。可以到 TURN 服務商（例如 Metered）申請免費帳號，填下面其中一種（存在這個瀏覽器；開房的人填就有機會，兩邊都填更穩）。</p>
+        <label for="turnPaste" class="note" style="display:block;margin:8px 0 4px">最簡單：把 Metered 的「ICE Servers Array」整段貼在這裡</label>
+        <textarea id="turnPaste" class="field" rows="4" style="width:100%;font-size:12px" placeholder='[{ urls: "turn:global.relay.metered.ca:80", username: "…", credential: "…" }, …]'></textarea>
+        <div class="form"><label for="turnApi">或：API 網址（Metered）</label><input id="turnApi" class="field" placeholder="https://你的名稱.metered.live/api/v1/turn/credentials?apiKey=…" value="${esc(LS.get('cg-turn-api', '') || '')}">
+        <label for="turnUrls">或：網址（用逗號分開）</label><input id="turnUrls" class="field" placeholder="turn:example.com:443?transport=tcp" value="${esc((turn.urls || []).join(', '))}">
         <label for="turnUser">帳號</label><input id="turnUser" class="field" value="${esc(turn.username || '')}">
         <label for="turnPass">密碼</label><input id="turnPass" class="field" value="${esc(turn.credential || '')}"></div>
         <div class="btns" style="margin-top:8px"><button class="btn" id="turnSave">儲存並重新測試</button></div>
       </details>`,
     buttons: [{ label: '關閉', primary: true, onClick: closeModal }] });
+  $('#turnPaste').oninput = () => {   // 從貼上的 ICE Servers Array 抓出 turn 網址和帳密（JSON 或 JS 寫法都可以）
+    const t = $('#turnPaste').value;
+    const urls = [...t.matchAll(/["']?urls["']?\s*:\s*["']((?:turns?):[^"']+)["']/g)].map(m => m[1]);
+    const user = /["']?username["']?\s*:\s*["']([^"']+)["']/.exec(t), cred = /["']?credential["']?\s*:\s*["']([^"']+)["']/.exec(t);
+    if (urls.length && user && cred) {
+      $('#turnUrls').value = urls.join(', '); $('#turnUser').value = user[1]; $('#turnPass').value = cred[1];
+      toast(`讀到 ${urls.length} 個中繼網址，按「儲存並重新測試」`);
+    }
+  };
   $('#turnSave').onclick = () => {
     const urls = $('#turnUrls').value.split(',').map(x => x.trim()).filter(Boolean);
     LS.set('cg-turn', urls.length ? { urls, username: $('#turnUser').value.trim(), credential: $('#turnPass').value.trim() } : null);
+    const api = $('#turnApi').value.trim();
+    if (api && !/^https:\/\//.test(api)) { toast('API 網址要用 https:// 開頭'); return; }
+    LS.set('cg-turn-api', api || null);
     connTest();
   };
   const out = $('#ctOut'), lines = [];
@@ -3491,6 +3528,7 @@ async function connTest() {
     if (k === 'stun') srflx = ok; else relay = relay || ok;
     lines.push(`${ok ? '✓' : '✗'} ${label}`);
   });
+  if (LS.get('cg-turn-api', null) && !groups.some(g => g[0] === 'custom')) lines.push('✗ 中繼：自訂 TURN（API 網址拿不到帳密，請檢查網址和 API key）');
   const verdict = !server ? '連不上配對伺服器：這個網路可能擋住了，或伺服器暫時有問題。換個網路（例如手機熱點）再試。'
     : relay ? '有可以用的中繼伺服器，就算網路比較嚴格也應該連得上。'
       : srflx ? '中繼伺服器都連不到。雙方網路都比較嚴格（學校、公司 Wi-Fi、手機網路）時可能會連不上，需要能用的 TURN。'

@@ -152,6 +152,22 @@ button.pk { padding: 0; }
 @keyframes chainPulse { 0%, 100% { box-shadow: 0 0 0 1px var(--brass-2); } 50% { box-shadow: 0 0 0 2px var(--brass-2), 0 0 14px rgba(226,196,122,.7); } }
 .chain-pill { background: rgba(20,16,12,.94); color: var(--brass-2); border: 1px solid var(--brass); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
 .btn.danger { border-color: #c96f5f; color: #f0a596; }
+/* 決策抽屜（不擋畫面） */
+.drawer { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 45; width: min(640px, calc(100vw - 24px)); max-height: 55vh; overflow: auto;
+  background: rgba(24,19,14,.97); border: 1px solid var(--brass); border-radius: 12px; padding: 12px 14px; box-shadow: 0 10px 34px rgba(0,0,0,.55); animation: drawerUp .25s ease-out; }
+.drawer.collapsed { width: auto; padding: 0; background: none; border: 0; box-shadow: none; overflow: visible; }
+.dr-head { display: flex; align-items: baseline; gap: 10px; }
+.dr-head b { color: var(--brass-2); font-size: 16px; }
+.dr-head .linkbtn { margin-left: auto; }
+.dr-desc { white-space: pre-line; color: var(--muted); font-size: 14px; margin: 6px 0 8px; }
+.dr-opts { display: flex; flex-direction: column; gap: 6px; }
+.dr-row { display: flex; align-items: center; gap: 8px; }
+.dr-row .opt { flex: 1; text-align: left; }
+.drawer .btns { margin-top: 8px; }
+.dr-tip { margin: 8px 0 0; font-size: 12px; }
+.dr-tab { background: rgba(24,19,14,.97); color: var(--brass-2); border: 1px solid var(--brass); border-radius: 999px; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,.5); animation: glow 1.4s ease-in-out infinite; }
+@keyframes drawerUp { from { opacity: 0; transform: translate(-50%, 24px); } to { opacity: 1; transform: translate(-50%, 0); } }
 /* 場況 */
 .sheet:has(.status-grid) { max-width: min(920px, 96vw); width: 920px; }
 .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -159,7 +175,7 @@ button.pk { padding: 0; }
 dl.status { display: grid; grid-template-columns: 6.5em 1fr; gap: 6px 10px; margin: 0; font-size: 14px; }
 dl.status dt { color: var(--muted); }
 dl.status dd { margin: 0; line-height: 1.8; }
-@media (max-width: 720px) { .status-grid { grid-template-columns: 1fr; } .chainbox { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; transform: none; max-height: 40vh; } }
+@media (max-width: 720px) { .status-grid { grid-template-columns: 1fr; } .chainbox { left: 8px; right: 8px; width: auto; top: 56px; transform: none; max-height: 30vh; } }
 
 /* 右側面板 */
 .panel { background: var(--rail); border-left: 1px solid var(--rail-line); display: flex; flex-direction: column; min-height: 0; }
@@ -389,6 +405,7 @@ button.pk, button.gc { padding: 0; }
     <div id="sideFar" class="side far"></div>
     <div id="mid" class="mid"></div>
     <div id="chainBox" class="chainbox hidden" aria-live="polite"></div>
+    <div id="drawer" class="drawer hidden" role="region" aria-label="需要你決定" aria-live="polite"></div>
     <div id="sideNear" class="side near"></div>
   </div>
   <aside class="panel">
@@ -423,7 +440,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.6';
+const VERSION = '0.7.7';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -3033,7 +3050,7 @@ function renderPrompt() {
       + (u.multi ? `<div class="btns"><button class="btn primary" id="pConfirm" ${u.chosen.length === u.multi ? '' : 'disabled'}>確認</button></div>` : '') + '</div>';
   } else {
     const who = g.names[g.cur];
-    const txt = app.mode === 'watch' ? 'AI 對戰中…' : g.cur === app.viewer ? '處理中…' : app.mode === 'online' ? `等待 ${esc(who)} 行動…` : 'AI 思考中…';
+    const txt = app.drawer ? '請在畫面下方決定。不用急，可以先收起來看看場上的卡。' : app.mode === 'watch' ? 'AI 對戰中…' : g.cur === app.viewer ? '處理中…' : app.mode === 'online' ? `等待 ${esc(who)} 行動…` : 'AI 思考中…';
     html = `<p class="waiting">${txt}</p>`;
   }
   el.innerHTML = html;
@@ -3305,13 +3322,33 @@ function closeModal() {
   $('#modal').classList.add('hidden'); app.dismiss = null;
   const f = app.modalClose; app.modalClose = null; if (f) f();
 }
-function chooseModal({ title, desc, options, noneLabel, onPick }) {
-  app.view = null; app.modalClose = null;
-  app.decisionOpen = true;
-  const body = options.map((h, i) => `<button class="opt" data-i="${i}">${h}</button>`).join('');
-  openModal({ title, desc, body, buttons: noneLabel ? [{ label: noneLabel, onClick: () => done(-1) }] : [] });
-  $('#mBody').querySelectorAll('.opt').forEach(b => b.onclick = () => done(+b.dataset.i));
-  function done(i) { app.decisionOpen = false; closeModal(); onPick(i); scheduleRender(); }
+// 決策抽屜：固定在畫面下方，不擋住盤面；可以收起來，先點場上的卡、墓地、場況看效果，再展開決定
+function chooseModal({ title, desc, options, noneLabel, onPick, cards }) {
+  app.drawer = { title, desc: desc || '', options, noneLabel, onPick, cards: cards || [], collapsed: false };
+  renderDrawer(); scheduleRender();
+  const first = $('#drawer .opt'); if (first) first.focus({ preventScroll: true });
+}
+function renderDrawer() {
+  const d = app.drawer, el = $('#drawer');
+  if (!d) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden'); el.classList.toggle('collapsed', d.collapsed);
+  if (d.collapsed) {
+    el.innerHTML = `<button class="dr-tab" id="drToggle">▲ ${esc(d.title)}（點這裡展開）</button>`;
+  } else {
+    el.innerHTML = `<div class="dr-head"><b>${esc(d.title)}</b><button class="linkbtn" id="drToggle">收起 ▼</button></div>
+      ${d.desc ? `<p class="dr-desc">${esc(d.desc)}</p>` : ''}
+      <div class="dr-opts">${d.options.map((h, i) => `<div class="dr-row"><button class="opt" data-i="${i}">${h}</button>${d.cards[i] ? `<button class="linkbtn" data-info="${i}">看效果</button>` : ''}</div>`).join('')}</div>
+      ${d.noneLabel ? `<div class="btns"><button class="btn" id="drNone">${esc(d.noneLabel)}</button></div>` : ''}
+      <p class="note dr-tip">不用馬上決定：可以收起來，點場上的卡、墓地或「場況」看清楚再回來。</p>`;
+    el.querySelectorAll('.opt').forEach(b => b.onclick = () => drawerDone(+b.dataset.i));
+    el.querySelectorAll('[data-info]').forEach(b => b.onclick = () => showDetails(d.cards[+b.dataset.info]));
+    const none = el.querySelector('#drNone'); if (none) none.onclick = () => drawerDone(-1);
+  }
+  el.querySelector('#drToggle').onclick = () => { d.collapsed = !d.collapsed; renderDrawer(); };
+}
+function drawerDone(i) {
+  const d = app.drawer; if (!d) return;
+  app.drawer = null; renderDrawer(); d.onPick(i); scheduleRender();
 }
 // 場況：雙方各區域的卡（對手只顯示公開的資訊）
 function openStatus() {
@@ -3472,21 +3509,23 @@ function ask(kind, pl, g, p, resolve) {
       let board = BOARD_KINDS.has(pl.kind);
       if (board) pl.opts.forEach((o, i) => { const k = optionKey(o, pl.kind, p); if (!k) board = false; else if (!keys.has(k)) keys.set(k, i); });
       if (board) { closeViewerForDecision(); setUI({ mode: 'pick', keys, multi: 0, chosen: [], prompt: pl.prompt, onDone: resolve }); return; }
-      return chooseModal({ title: pl.prompt, options: pl.opts.map(optionLabel), onPick: resolve });
+      return chooseModal({ title: pl.prompt, options: pl.opts.map(optionLabel), onPick: resolve,
+        cards: pl.opts.map(o => (o.card && !o.card.isPoker ? o.card : null)) });
     }
     case 'respond': {
       const top = pl.chain && pl.chain.length ? pl.chain[pl.chain.length - 1] : null;
       if (app.askMode !== 'all' && minorWindow(top, pl.opts, p)) return resolve(-1);
       return chooseModal({ title: top ? '要回應嗎？' : '對手的回合即將結束', desc: top ? (pl.chain.length > 1 ? '目前的連鎖（最後一環最先處理）：\n' + chainSummary(pl.chain) : linkText(top)) : '你可以在這時候發動快速效果。',
-        options: pl.opts.map(o => esc(g.quickDesc(p, o))), noneLabel: '不回應', onPick: resolve });
+        options: pl.opts.map(o => esc(g.quickDesc(p, o))), noneLabel: '不回應', onPick: resolve,
+        cards: pl.opts.map(o => (o.t === 'trap' || o.t === 'waltz' ? g.P[p].sts[o.z].card : o.t === 'twin' ? g.P[p].mons[o.z].card : o.card)) });
     }
     case 'trigger':
       return chooseModal({ title: `要發動 ${pl.card.d.name} 的效果嗎？`, desc: pl.card.d.text,
-        options: ['發動'], noneLabel: '不發動', onPick: k => resolve(k === 0) });
+        options: ['發動'], noneLabel: '不發動', onPick: k => resolve(k === 0), cards: [pl.card] });
     case 'yesno':
       return chooseModal({ title: pl.prompt, options: ['是'], noneLabel: '否', onPick: k => resolve(k === 0) });
     case 'effect':
-      return chooseModal({ title: pl.prompt, desc: pl.card.d.text, options: pl.opts.map(o => esc(o.label)), onPick: resolve });
+      return chooseModal({ title: pl.prompt, desc: pl.card.d.text, options: pl.opts.map(o => esc(o.label)), onPick: resolve, cards: pl.opts.map(() => pl.card) });
     case 'direct':
       return chooseModal({ title: '直接攻擊：選一個效果', desc: `對手槽 ${g.slotScore(1 - p)} / ${g.hp}，你的槽 ${g.slotScore(p)} / ${g.hp}，牌堆 ${g.deck.length} 張。`,
         options: ['移除對手血量槽 1 張命牌（洗回牌堆）', '從牌堆加 1 張命牌到你的血量槽'], onPick: k => resolve(k === 0 ? 'remove' : 'add') });
@@ -3509,6 +3548,7 @@ const aiDelay = kind => (kind === 'main' ? SPEEDS[app.speed] : Math.round(SPEEDS
 function begin(agents, seed, viewer, mode, names, decks) {
   const no = ++app.gameNo;
   app.viewer = viewer; app.mode = mode; app.pending = null; app.prepared = null; app.logShown = 0; app.decisionOpen = false;
+  app.drawer = null; renderDrawer();
   app.ui = { mode: 'none' }; app.sel = null; app.placeSel.clear(); app.view = null;
   closeModal();
   const g = new E.Game(agents, seed, {
@@ -3551,14 +3591,14 @@ function gameError(err) {
   let msg = '發生錯誤：' + (err && err.message);
   if (err instanceof N.DesyncError) msg = '雙方盤面不同步了。最常見的原因是兩邊的網頁版本不同：請雙方重新整理網頁後再開房。';
   else if (err && /離線/.test(err.message)) msg = '對手離線了，這局中止。';
-  app.decisionOpen = false;
+  app.decisionOpen = false; app.drawer = null; renderDrawer();
   openModal({ title: '對局中止', desc: msg, buttons: [
     { label: '下載這局紀錄', onClick: () => download(`對局-${stamp()}-中止.json`, currentRecord()) },
     { label: '回選單', primary: true, onClick: () => leaveGame(true) }] });
 }
 function leaveGame(force) {
   const go = () => {
-    app.gameNo++; app.pending = null; app.decisionOpen = false; app.ui = { mode: 'none' }; closeModal();
+    app.gameNo++; app.pending = null; app.decisionOpen = false; app.ui = { mode: 'none' }; closeModal(); app.drawer = null; renderDrawer();
     if (app.session) { app.session.close(); app.session = null; }
     if (app.lobby) { app.lobby.cancel(); app.lobby = null; }
     app.online = null; app.mode = null; showScreen('menu');
@@ -3947,6 +3987,7 @@ function init() {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (app.dismiss) { app.dismiss(); return; }
+    if (app.drawer) { app.drawer.collapsed = !app.drawer.collapsed; renderDrawer(); return; }   // Esc：收起／展開決策抽屜
     if (!$('#pop').classList.contains('hidden')) { app.sel = null; scheduleRender(); return; }
     if (app.ui.onCancel) cancelMode();
   });

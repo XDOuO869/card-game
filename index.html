@@ -130,6 +130,36 @@ button.pk { padding: 0; }
 .mid .turnline { color: var(--paper); font-weight: 500; }
 .chain { display: inline-flex; flex-direction: column; gap: 2px; margin-top: 6px; background: rgba(0,0,0,.25); border: 1px solid var(--brass); border-radius: 8px; padding: 6px 12px; text-align: left; color: var(--text); }
 .chain b { color: var(--brass-2); }
+#mDesc { white-space: pre-line; }
+/* 連鎖框 */
+.chainbox { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 30; width: 270px; max-height: 60vh; overflow: auto;
+  background: rgba(20,16,12,.94); border: 1px solid var(--brass); border-radius: 10px; padding: 8px 10px; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+.chainbox.collapsed { width: auto; padding: 0; background: none; border: 0; box-shadow: none; }
+.chain-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+.chain-head b { color: var(--brass-2); font-size: 15px; }
+.chain-head .linkbtn { margin-left: auto; }
+.chain-list { display: flex; flex-direction: column; gap: 6px; }
+.clink { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.06); border-left: 4px solid var(--brass); color: var(--text); font-size: 14px; }
+.clink.theirs { border-left-color: #c96f5f; }
+.clink .cnum { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--brass); color: #1b140c; font-weight: 700; display: grid; place-items: center; font-size: 13px; }
+.clink .cwho { flex: none; color: var(--muted); font-size: 12px; }
+.clink .ctext em { margin-left: 6px; color: #e08a7a; font-style: normal; font-weight: 700; }
+.clink.new { animation: chainIn .45s cubic-bezier(.2,.9,.3,1.2); }
+.clink.resolving { background: rgba(226,196,122,.22); animation: chainPulse .7s ease-in-out infinite; }
+.clink.done { opacity: .4; text-decoration: line-through; }
+.clink.negated .ctext { text-decoration: line-through; }
+@keyframes chainIn { from { opacity: 0; transform: translateX(-40px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes chainPulse { 0%, 100% { box-shadow: 0 0 0 1px var(--brass-2); } 50% { box-shadow: 0 0 0 2px var(--brass-2), 0 0 14px rgba(226,196,122,.7); } }
+.chain-pill { background: rgba(20,16,12,.94); color: var(--brass-2); border: 1px solid var(--brass); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.btn.danger { border-color: #c96f5f; color: #f0a596; }
+/* 場況 */
+.sheet:has(.status-grid) { max-width: min(920px, 96vw); width: 920px; }
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.status-col h4 { margin: 0 0 6px; color: var(--brass-2); }
+dl.status { display: grid; grid-template-columns: 6.5em 1fr; gap: 6px 10px; margin: 0; font-size: 14px; }
+dl.status dt { color: var(--muted); }
+dl.status dd { margin: 0; line-height: 1.8; }
+@media (max-width: 720px) { .status-grid { grid-template-columns: 1fr; } .chainbox { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; transform: none; max-height: 40vh; } }
 
 /* 右側面板 */
 .panel { background: var(--rail); border-left: 1px solid var(--rail-line); display: flex; flex-direction: column; min-height: 0; }
@@ -258,6 +288,7 @@ button.pk, button.gc { padding: 0; }
     <select id="askMode" class="tbtn" aria-label="全時點的卡什麼時候詢問" title="迴旋、伏兵這類全時點的卡，什麼時候跳出「要回應嗎？」">
       <option value="key">詢問：重要時點</option><option value="all">詢問：每個時點</option>
     </select>
+    <button id="btnStatus" class="tbtn hidden">場況</button>
     <button id="btnMyExtra" class="tbtn hidden">確認牌組</button>
     <button id="btnLeave" class="tbtn hidden">離開</button>
   </div>
@@ -357,6 +388,7 @@ button.pk, button.gc { padding: 0; }
   <div class="board">
     <div id="sideFar" class="side far"></div>
     <div id="mid" class="mid"></div>
+    <div id="chainBox" class="chainbox hidden" aria-live="polite"></div>
     <div id="sideNear" class="side near"></div>
   </div>
   <aside class="panel">
@@ -391,7 +423,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.5';
+const VERSION = '0.7.6';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -781,6 +813,8 @@ class Game {
     this.seed = seed >>> 0;
     this.rng = new RNG(this.seed);
     this.onEvent = opts.onEvent || (() => {});
+    this.onChainStep = opts.onChainStep || null;   // 畫面用：連鎖每處理一環前等一下，讓玩家看得到
+    this.resolving = -1;
     this.mode = opts.mode || 'local';
     this.decks = (opts.decks || [PRESETS['標準'], PRESETS['標準']]).map(d => d.slice());
     for (const d of this.decks) { const err = validateDeck(d); if (err) throw new Error(err); }
@@ -1318,7 +1352,7 @@ class Game {
     const link = new Link('acquire', p, card);
     link.oppTaken = r.taken;
     const t = this.payText(r);
-    this.log(`${this.nm(p)} 取得一張魔陷${src === 'gy' ? '（從墓地）' : ''}：${t}`, `${this.nm(p)} 取得 ${card}${src === 'gy' ? '（從墓地）' : ''}：${t}`, p);
+    this.log(`${this.nm(p)} 取得 1 張卡${src === 'gy' ? '（從墓地）' : ''}：${t}`, `${this.nm(p)} 取得 ${card}${src === 'gy' ? '（從墓地）' : ''}：${t}`, p);
     return link;
   }
   async makeSpell(p, card) {
@@ -1349,7 +1383,7 @@ class Game {
     remove(me.ghand, card);
     me.sts[this.freeZone(me.sts)] = new FieldST(card, mats, this.turn);
     const extra = mats.length ? `，素材 ${fmt(mats)}` : '';
-    this.log(`${this.nm(p)} 蓋放一張魔陷${extra}`, `${this.nm(p)} 蓋放 ${card}${extra}`, p);
+    this.log(`${this.nm(p)} 蓋放 1 張卡${extra}`, `${this.nm(p)} 蓋放 ${card}${extra}`, p);
   }
   async makeIgnite(p, z) {
     const me = this.P[p], op = this.P[1 - p];
@@ -1675,9 +1709,11 @@ class Game {
       q = 1 - q;
     }
     for (let i = chain.length - 1; i >= 0; i--) {
+      this.resolving = i; this.onEvent('state');
+      if (this.onChainStep && chain.length > 1) await this.onChainStep(chain[i], i);
       if (!chain[i].negated) await this.resolve(chain[i]);
     }
-    this.chain = null; this.onEvent('state');
+    this.resolving = -1; this.chain = null; this.onEvent('state');
   }
   negate(t) {
     if (!t || t.negated) return;
@@ -1932,10 +1968,10 @@ class Game {
         remove(fromGy ? me.gy : me.extra, c);
         if (toSet) {
           me.sts[this.freeZone(me.sts)] = new FieldST(c, [], this.turn);
-          this.log(`${this.nm(p)} 從${fromGy ? '墓地' : '額外牌組'}蓋放 1 張魔陷`, `${this.nm(p)} 從${fromGy ? '墓地' : '額外牌組'}蓋放 ${c}`, p);
+          this.log(`${this.nm(p)} 從${fromGy ? '墓地' : '額外牌組'}蓋放 1 張卡`, `${this.nm(p)} 從${fromGy ? '墓地' : '額外牌組'}蓋放 ${c}`, p);
         } else {
           me.ghand.push(c);
-          this.log(`${this.nm(p)} 把 1 張魔陷加入手牌`, `${this.nm(p)} 把 ${c} 加入手牌`, p);
+          this.log(`${this.nm(p)} 把 1 張卡加入手牌`, `${this.nm(p)} 把 ${c} 加入手牌`, p);
         }
         break;
       }
@@ -1958,7 +1994,7 @@ class Game {
         if (!cands.length) break;
         const c = await this.pickTarget(p, '把哪張「餘燼」魔陷加入手牌？（額外牌組或墓地）', cands, 'search');
         remove(me.extra.includes(c) ? me.extra : me.gy, c); me.ghand.push(c);
-        this.log(`${this.nm(p)} 把 1 張魔陷加入手牌`, `${this.nm(p)} 把 ${c} 加入手牌`, p);
+        this.log(`${this.nm(p)} 把 1 張卡加入手牌`, `${this.nm(p)} 把 ${c} 加入手牌`, p);
         break;
       }
     }
@@ -2667,6 +2703,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 const SPEEDS = { fast: 150, mid: 500, slow: 1000 };
+const CHAIN_STEP = { fast: 350, mid: 700, slow: 1100 };   // 連鎖兩環以上時，每處理一環前停多久（毫秒）
 const REC_KEY = 'cg-records-v1';
 const KIND = E.KIND_NAME;
 const params = new URLSearchParams(location.search);
@@ -2683,7 +2720,7 @@ const app = {
   view: null,             // 牌堆檢視視窗 { type, pid, sel, detail }
   M: null,                // 這次繪製的發光／選取標記
   session: null, isHost: false, lobby: null, oppName: '對手', oppDeck: null, online: null, gotStart: false, roomCode: null,
-  speed: LS.get('cg-speed', 'mid'), askMode: LS.get('cg-ask', 'key'), name: LS.get('cg-name', ''),
+  speed: LS.get('cg-speed', 'mid'), askMode: LS.get('cg-ask', 'key'), chainHidden: LS.get('cg-chain-hidden', false), name: LS.get('cg-name', ''),
   builder: null
 };
 
@@ -2701,6 +2738,7 @@ function showScreen(name) {
   $('#table').classList.toggle('hidden', name !== 'table');
   $('#btnLeave').classList.toggle('hidden', name !== 'table');
   $('#btnMyExtra').classList.toggle('hidden', name !== 'table' || app.viewer === null);
+  $('#btnStatus').classList.toggle('hidden', name !== 'table');
   if (name === 'menu') { updateRecCount(); fillDeckSelects(); $('#status').textContent = ''; hidePop(); }
   window.scrollTo(0, 0);
 }
@@ -2899,7 +2937,7 @@ function sideHTML(pid, near) {
   const see = app.viewer === null || app.viewer === pid;
   const acting = !g.result && g.cur === pid;
   const head = `<div class="side-head"><span class="who">${esc(g.names[pid])}<span class="seat">${pid === 0 ? '先手' : '後手'}</span>${acting ? '<span class="acting">回合中</span>' : ''}</span>
-    <span>命牌手牌 ${ps.hand.length}｜術卡手牌 ${ps.ghand.length}${see && app.viewer !== null ? '｜<button class="linkbtn" data-k="deck">確認牌組</button>' : ''}</span></div>`;
+    <span>${see ? `命牌手牌 ${ps.hand.length}｜術卡手牌 ${ps.ghand.length}` : `手牌 ${ps.hand.length + ps.ghand.length} 張`}${see && app.viewer !== null ? '｜<button class="linkbtn" data-k="deck">確認牌組</button>' : ''}</span></div>`;
   const mons = `<div class="zrow"><div class="zones mons">${ps.mons.map(fm => {
     if (!fm) return '<span class="zone"></span>';
     return gcHTML(fm.card, Object.assign({ mats: fm.materials, cls: fm.attacked ? 'used' : '' }, monTag(fm, 'u' + fm.card.uid, pid)));
@@ -2912,24 +2950,48 @@ function sideHTML(pid, near) {
     hand = `<div class="hand">${ps.hand.map(c => pokerHTML(c, '', 'u' + c.uid)).join('') || '<span class="note">沒有命牌手牌</span>'}`
       + (ps.ghand.length ? '<span class="sep"></span>' + ps.ghand.map(c => gcHTML(c, { cls: 'small' })).join('') : '') + '</div>';
   } else {
-    hand = `<div class="opp-hand" aria-label="對手命牌手牌 ${ps.hand.length} 張、術卡手牌 ${ps.ghand.length} 張">${ps.hand.map(() => '<span class="pk back small"></span>').join('')}${ps.ghand.map(() => '<span class="pk back small" style="border-color:var(--trap)"></span>').join('')}</div>`;
+    const n = ps.hand.length + ps.ghand.length;
+    hand = `<div class="opp-hand" aria-label="對手手牌 ${n} 張">${'<span class="pk back small"></span>'.repeat(n)}</div>`;
   }
   return near ? slotHTML(pid) + mons + sts + hand + head : head + hand + sts + mons + slotHTML(pid);
 }
 function linkText(l) {
   const g = app.game;
-  if (l.kind === 'acquire' && app.viewer !== null && app.viewer !== l.pid) return `${g.nm(l.pid)} 取得一張魔陷`;
+  if (l.kind === 'acquire' && app.viewer !== null && app.viewer !== l.pid) return `${g.nm(l.pid)} 取得 1 張卡`;
   return g.linkDesc(l);
 }
 function renderMid() {
   const g = app.game; let html;
   if (g.result) html = '<div class="turnline">對局結束</div>';
   else html = `<div class="turnline">第 ${g.turn} 回合｜${esc(g.names[g.cur])} 的回合</div><div>牌堆 ${g.deck.length} 張｜HP ${g.hp}（血量牌 ${g.hpCard}）</div>`;
-  if (g.chain && g.chain.length) {
-    html += `<div class="chain"><b>連鎖（由下往上處理）</b>${g.chain.map((l, i) =>
-      `<span>${i + 1}. ${esc(linkText(l))}${l.negated ? '（已無效）' : ''}</span>`).join('')}</div>`;
-  }
   $('#mid').innerHTML = html;
+  renderChain();
+}
+// 連鎖框：最上面是最後加入、最先處理的；新加入的一環有動畫，處理中的一環會閃
+function renderChain() {
+  const g = app.game, box = $('#chainBox'), chain = g.chain;
+  if (!chain || !chain.length) { box.classList.add('hidden'); app.chainSeen = 0; return; }
+  box.classList.remove('hidden');
+  box.classList.toggle('collapsed', !!app.chainHidden);
+  const seen = app.chainSeen || 0; app.chainSeen = chain.length;
+  const who = pid => (app.viewer === null ? g.names[pid] : pid === app.viewer ? '你' : '對手');
+  const rows = chain.map((l, i) => {
+    const cls = ['clink', l.pid === app.viewer ? 'mine' : 'theirs'];
+    if (i >= seen) cls.push('new');
+    if (g.resolving === i) cls.push('resolving');
+    if (g.resolving >= 0 && i > g.resolving) cls.push('done');
+    if (l.negated) cls.push('negated');
+    const text = linkText(l).replace(g.nm(l.pid) + ' ', '');
+    return `<div class="${cls.join(' ')}"><span class="cnum">${i + 1}</span><span class="cwho">${esc(who(l.pid))}</span><span class="ctext">${esc(text)}${l.negated ? '<em>無效</em>' : ''}</span></div>`;
+  }).reverse().join('');
+  const state = g.resolving >= 0 ? `處理中：第 ${g.resolving + 1} 環` : '由上往下處理';
+  box.innerHTML = app.chainHidden
+    ? `<button class="chain-pill" id="chainToggle">連鎖 ${chain.length} 環 ▸</button>`
+    : `<div class="chain-head"><b>連鎖 ${chain.length} 環</b><span>${state}</span><button class="linkbtn" id="chainToggle">隱藏</button></div><div class="chain-list">${rows}</div>`;
+  $('#chainToggle').onclick = () => { app.chainHidden = !app.chainHidden; LS.set('cg-chain-hidden', app.chainHidden); renderChain(); };
+}
+function chainSummary(chain) {   // 給「要回應嗎？」彈窗用
+  return chain.map((l, i) => `${i + 1}. ${linkText(l)}${l.negated ? '（無效）' : ''}`).join('\n');
 }
 
 // ─────────── 右側提示 ───────────
@@ -2961,7 +3023,8 @@ function renderPrompt() {
       ${spec.gyReq ? `<p>墓地：已選 ${u.gyChosen.length} / ${gyN}</p>
       <div class="chips">${ps.gyAll.map(c => gcHTML(c, { cls: 'small' })).join('') || '<span class="note" style="margin:0">墓地沒有怪獸</span>'}</div>` : ''}
       <div class="btns"><button class="btn primary" id="pConfirm" ${ps.complete ? '' : 'disabled'}>確認${u.verb}</button>
-      <button class="btn" id="pCancel">取消</button><button class="linkbtn" id="pInfo">詳細資料</button></div>
+      <button class="btn${u.cancelArmed ? ' danger' : ''}" id="pCancel">${u.mid ? (u.cancelArmed ? '確定放棄' : '放棄') : '取消'}</button><button class="linkbtn" id="pInfo">詳細資料</button></div>
+      ${u.mid ? '<p class="note" style="margin-top:6px">這是效果處理中的召喚，放棄的話這次發動就浪費了。</p>' : ''}
       ${!ps.complete && !ps.glow.size && (u.chosen.length || u.gyChosen.length) ? '<p style="margin-top:8px">目前選的牌湊不成條件，點已選的牌可以取消。</p>' : ''}</div>`;
   } else if (u.mode === 'attack') {
     html = `<div class="prompt"><h3>${esc(u.name)} 要攻擊誰？</h3><p>點發亮的怪獸。標籤是比較戰鬥牌值後的結果。</p><div class="btns">${u.direct !== undefined ? '<button class="btn primary" id="pDirect">直接攻擊（移除對手槽 1 張）</button>' : ''}<button class="btn" id="pCancel">取消</button></div></div>`;
@@ -3142,10 +3205,12 @@ function payClick(key) {
   }
   const ps = app.payCache || payState();
   if (!ps.glow.has(key)) return;
-  const gyc = ps.gyAll.find(x => 'u' + x.uid === key);
-  if (gyc) { u.gyChosen.push(gyc); scheduleRender(); return; }
+  u.cancelArmed = false;
+  // 先看是不是一般條件（手牌、場上、對手槽、效果允許的額外牌組／墓地）；只有卡片本身有墓地條件時才算墓地條件
   const c = [...ps.s.own, ...ps.s.opp, ...ps.s.ext].find(x => keyOf(x) === key);
-  if (c) { u.chosen.push(c); scheduleRender(); }
+  if (c) { u.chosen.push(c); scheduleRender(); return; }
+  const gyc = u.spec.gyReq ? ps.gyAll.find(x => 'u' + x.uid === key) : null;
+  if (gyc) { u.gyChosen.push(gyc); scheduleRender(); }
 }
 function confirmPay() {
   const u = app.ui, ps = payState();
@@ -3248,6 +3313,40 @@ function chooseModal({ title, desc, options, noneLabel, onPick }) {
   $('#mBody').querySelectorAll('.opt').forEach(b => b.onclick = () => done(+b.dataset.i));
   function done(i) { app.decisionOpen = false; closeModal(); onPick(i); scheduleRender(); }
 }
+// 場況：雙方各區域的卡（對手只顯示公開的資訊）
+function openStatus() {
+  const g = app.game; if (!g || app.decisionOpen) return;
+  const me = app.viewer, sides = me === null ? [0, 1] : [me, 1 - me];
+  const chips = cs => (cs.length ? cs.map(chipHTML).join(' ') : '<span class="note" style="margin:0">—</span>');
+  const group = cs => {   // 同名的合在一起：卡名 ×N
+    const m = new Map(); for (const c of cs) m.set(c.name, (m.get(c.name) || 0) + 1);
+    return m.size ? [...m].map(([n, k]) => `<span class="mchip">${esc(n)}${k > 1 ? ` ×${k}` : ''}</span>`).join(' ') : '<span class="note" style="margin:0">—</span>';
+  };
+  const col = pid => {
+    const ps = g.P[pid], see = me === null || me === pid;
+    const mons = ps.mons.filter(Boolean), sts = ps.sts.filter(Boolean);
+    const stTxt = sts.length ? sts.map(st => (see || st.faceUp ? chipHTML(st.card) + (st.faceUp ? '（永續）' : '（蓋放）') : '<span class="mchip">蓋放的卡</span>')).join(' ') : '<span class="note" style="margin:0">—</span>';
+    const monTxt = mons.length ? mons.map(f => chipHTML(f.card) + (f.materials.length ? `<small> 素材 ${f.materials.map(chipHTML).join('')}</small>` : '')).join('<br>') : '<span class="note" style="margin:0">—</span>';
+    let extra;
+    if (see) {
+      const byLoc = {};
+      for (const c of ownedCards(pid)) (byLoc[locate(ps, c)] = byLoc[locate(ps, c)] || []).push(c);
+      extra = `<dt>15 張術卡的位置</dt><dd>${['額外牌組', '手牌', '怪獸區', '魔陷區', '墓地', '素材'].filter(k => byLoc[k]).map(k => `<b>${k}</b> ${group(byLoc[k])}`).join('<br>')}</dd>`;
+    } else {
+      const seen = [...ps.gy.filter(c => !c.isPoker), ...mons.map(f => f.card), ...sts.filter(st => st.faceUp).map(st => st.card),
+        ...[...mons, ...sts].flatMap(h => h.materials.filter(m => !m.isPoker && m.owner === pid))];
+      extra = `<dt>看得到的術卡</dt><dd>${group(seen)}<br><small>額外牌組還有 ${ps.extra.length} 張、手牌 ${ps.hand.length + ps.ghand.length} 張看不到</small></dd>`;
+    }
+    return `<div class="status-col"><h4>${esc(g.names[pid])}（${pid === 0 ? '先手' : '後手'}）${me === pid ? '・你' : ''}</h4><dl class="status">
+      <dt>血量槽</dt><dd>${g.slotScore(pid)} / ${g.hp}　${chips(ps.slot)}</dd>
+      <dt>手牌</dt><dd>${see ? `命牌 ${ps.hand.length} 張、術卡 ${ps.ghand.length} 張` : `${ps.hand.length + ps.ghand.length} 張`}</dd>
+      <dt>額外牌組</dt><dd>${ps.extra.length} 張</dd>
+      <dt>怪獸區</dt><dd>${monTxt}</dd><dt>魔陷區</dt><dd>${stTxt}</dd>
+      <dt>墓地</dt><dd>${group(ps.gy)}</dd>${extra}</dl></div>`;
+  };
+  openModal({ title: '場況', desc: `第 ${g.turn} 回合｜牌堆 ${g.deck.length} 張｜HP ${g.hp}`, dismissable: true,
+    body: `<div class="status-grid">${sides.map(col).join('')}</div>`, buttons: [{ label: '關閉', primary: true, onClick: closeModal }] });
+}
 function showDetails(c) {
   if (!c || app.decisionOpen) return;
   openModal({ title: c.d.name, body: cardInfoHTML(c, holderOf(c)), buttons: [{ label: '關閉', primary: true, onClick: closeModal }], dismissable: true });
@@ -3348,8 +3447,12 @@ function ask(kind, pl, g, p, resolve) {
       return;
     case 'pay':   // 主要階段以外要支付（例如在對方回合召喚）
       closeViewerForDecision();
-      setUI({ mode: 'pay', card: pl.card, spec: pl.spec, chosen: [], gyChosen: [], verb: '召喚',
-        onDone: v => resolve(v), onCancel: () => { setUI({ mode: 'none' }); resolve(null); } });
+      setUI({ mode: 'pay', card: pl.card, spec: pl.spec, chosen: [], gyChosen: [], verb: '召喚', mid: true,
+        onDone: v => resolve(v), onCancel: () => {
+          const u = app.ui;
+          if (!u.cancelArmed) { u.cancelArmed = true; toast('效果已經發動了，現在放棄的話這次發動就浪費了。真的要放棄請再按一次。', 4000); scheduleRender(); return; }
+          setUI({ mode: 'none' }); resolve(null);
+        } });
       return;
     case 'place':
     case 'overflow':
@@ -3374,7 +3477,7 @@ function ask(kind, pl, g, p, resolve) {
     case 'respond': {
       const top = pl.chain && pl.chain.length ? pl.chain[pl.chain.length - 1] : null;
       if (app.askMode !== 'all' && minorWindow(top, pl.opts, p)) return resolve(-1);
-      return chooseModal({ title: top ? '要回應嗎？' : '對手的回合即將結束', desc: top ? linkText(top) : '你可以在這時候發動快速效果。',
+      return chooseModal({ title: top ? '要回應嗎？' : '對手的回合即將結束', desc: top ? (pl.chain.length > 1 ? '目前的連鎖（最後一環最先處理）：\n' + chainSummary(pl.chain) : linkText(top)) : '你可以在這時候發動快速效果。',
         options: pl.opts.map(o => esc(g.quickDesc(p, o))), noneLabel: '不回應', onPick: resolve });
     }
     case 'trigger':
@@ -3410,6 +3513,7 @@ function begin(agents, seed, viewer, mode, names, decks) {
   closeModal();
   const g = new E.Game(agents, seed, {
     mode, decks, names: names || agents.map(a => a.name),
+    onChainStep: () => new Promise(r => setTimeout(r, CHAIN_STEP[app.speed] || 600)),
     onEvent: () => { if (no !== app.gameNo) throw new Error('aborted'); scheduleRender(); }
   });
   app.game = g;
@@ -3828,6 +3932,7 @@ function init() {
     buttons: [{ label: '取消', onClick: closeModal }, { label: '清除', primary: true, onClick: () => { LS.set(REC_KEY, []); updateRecCount(); closeModal(); } }] });
   $('#btnLeave').onclick = () => leaveGame(false);
   $('#btnMyExtra').onclick = () => openViewer('deck', app.viewer);
+  $('#btnStatus').onclick = () => openStatus();
   $('#table').addEventListener('click', e => {
     const el = e.target.closest('[data-k]');
     if (el && el.closest('#table')) { onKey(el.dataset.k); return; }
@@ -3853,7 +3958,7 @@ function init() {
   const room = params.get('room');
   if (room) { $('#codeInput').value = room.toUpperCase(); setTimeout(() => openJoin(room), 300); }
 }
-window.CardUI = { app };
+window.CardUI = { app, begin, HumanAgent };   // begin、HumanAgent 給測試用（重播紀錄到某一步再交給人操作）
 init();
 })();
 </script>

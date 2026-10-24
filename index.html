@@ -104,6 +104,11 @@ details.rules li { margin: 4px 0; }
 .pk.back, .gc.back { background: repeating-linear-gradient(45deg, #2b4a42 0 6px, #24403a 6px 12px); border: 1px solid var(--brass); }
 .pk.back.small { width: 16px; height: 24px; border-radius: 3px; }
 button.pk { padding: 0; }
+.pk.ghost { background: #e4dccb; border: 1px dashed var(--brass); position: relative; }
+.pk.ghost::after { content: '術'; position: absolute; top: 1px; right: 2px; font-size: 8px; color: var(--brass); }
+.opp-hand.revealed { flex-wrap: wrap; align-items: center; }
+.opp-hand.revealed .pk.small { width: 26px; height: 34px; border-radius: 4px; }
+.opp-hand.revealed .pk.small b { font-size: 12px; } .opp-hand.revealed .pk.small i { font-size: 10px; margin: 0; }
 .pk.pick { cursor: pointer; transition: transform .12s; }
 .pk.pick.on { transform: translateY(-8px); outline: 2px solid var(--brass-2); outline-offset: 1px; }
 
@@ -366,7 +371,7 @@ button.pk, button.gc { padding: 0; }
         <li>素材壓在卡的下方，不算 HP。代價付掉後，命牌進自己的槽，術卡進墓地。</li>
         <li>手牌上限：命牌 6 張、術卡 3 張。回合結束時超過的部分，命牌進槽、術卡送墓地。</li>
         <li>每回合一次：從墓地召喚怪獸，或把魔陷加入手牌，要付那張卡的條件（卡片另外寫明的除外）。</li>
-        <li>同名怪獸每回合召喚次數：牌值 1–3 三次、4–9 兩次、10 以上一次。</li>
+        <li>同名怪獸每回合召喚次數：牌值 1–3 三次、4–9 兩次、10 以上一次。宣言召喚時就算一次，被無效也不退；從墓地召喚被無效，墓地的每回合一次也一樣用掉。</li>
         <li>每回合最多 3 隻怪獸可以攻擊。戰鬥比牌值，小的被破壞，一樣大就一起破壞。</li>
         <li>對手沒有怪獸時可以直接攻擊：移除對手槽 1 張命牌，或從牌堆加 1 張命牌到自己的槽。</li>
         <li>攻擊對象在處理前離場，或直接攻擊時對手場上出現怪獸：這次攻擊退還，可以重新宣言（被止戈這類效果無效的攻擊不退還）。</li>
@@ -440,7 +445,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.7.7';
+const VERSION = '0.8.0';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -505,6 +510,8 @@ class Poker {   // 命牌；rank 0 是鬼牌
 class GCard {   // 術卡
   constructor(uid, d, owner) { this.uid = uid; this.d = d; this.owner = owner; this.isPoker = false; }
   get name() { return this.d.name; }
+  get rank() { return this.d.rank; }
+  get suit() { return this.d.suit; }
   toString() {
     return this.d.kind === 'monster' ? `《${this.d.name} ${this.d.suit}${rankStr(this.d.rank)}》` : `《${this.d.name}》`;
   }
@@ -552,18 +559,18 @@ const POOL = [
   C('城門守衛', 'monster', '不能攻擊。只要這張卡在場上，對方只能攻擊這張卡。召喚後到下個對方回合結束前，不會被戰鬥破壞。', M('♣', 11, { req: ['color', 3], mode: 'material', cantAttack: true, taunt: true, immune: true })),
   C('替身', 'monster', '只能在對方宣言攻擊時，從額外牌組召喚（素材只能用手牌）。召喚後成為那次攻擊的對象。', M('♦', 8, { req: ['any', 1], mode: 'material', from: 'hand', quickSummon: 'attack', onlyQuick: true })),
   // 墓地
-  C('亡骸巨兵', 'monster', '沒有效果。', M('♣', 12, { gyReq: { n: 2, to: 'extra' } })),
-  C('拾骨術士', 'monster', '1 回合 1 次：拔除 1 個術卡素材，抽 1 張。', M('♠', 8, { req: ['any', 1], mode: 'material', gyReq: { n: 1, to: 'under' } })),
+  C('亡骸巨兵', 'monster', '①這張卡召喚成功後，這回合自己不能召喚牌值 12 以上的怪獸。②這張卡作為怪獸從場上離開時，改成放進對方的槽，當成一般的命牌（♣Q）；之後離開槽時進持有者的墓地。', M('♣', 12, { gyReq: { n: 2, to: 'extra' }, toOppSlot: true })),
+  C('拾骨術士', 'monster', '1 回合 1 次：拔除 1 個術卡素材，抽 1 張。', M('♠', 10, { req: ['any', 2], mode: 'material', gyReq: { n: 1, to: 'under' } })),
   C('輪迴', 'spell', '從墓地召喚 1 隻牌值 8 以下的怪獸，不用付條件，不算墓地的每回合一次。', { req: ['same_rank', 2] }),
   // 術卡當條件
-  C('雙頭魔像', 'monster', '要被戰鬥破壞時，可以改成拔除 1 個術卡素材。', M('♦', 13, { req: ['monsters', 2], mode: 'material' })),
-  C('傳承', 'spell', '選自己場上 1 隻怪獸送墓地，從額外牌組召喚 1 隻牌值比它大 1～3 的怪獸，不用付條件。', { req: ['any', 1] }),
+  C('雙頭魔像', 'monster', '要被戰鬥破壞時，可以改成拔除 1 個術卡素材。', M('♦', 13, { req: ['monsters', 2, 6], mode: 'material' })),
+  C('傳承', 'spell', '選自己場上 1 隻怪獸送墓地，從額外牌組召喚 1 隻牌值比它大 1～3 的怪獸，不用付條件。', { req: ['same_rank', 2] }),
   // 血量槽
-  C('回流', 'spell', '自己槽裡 2 張命牌洗回牌堆，抽 3 張。', { req: ['any', 1] }),
+  C('回流', 'spell', '自己槽裡 3 張命牌洗回牌堆，抽 2 張。', { req: ['any', 1] }),
   C('借道', 'spell', '本回合使用對方槽的次數 +2。', { req: ['any', 1], mode: 'gift', from: 'hand_poker' }),
   C('壁壘', 'trap', '對方要拿走或移除你槽中的命牌時：到你下個回合開始前，對方總共只能再從你的槽拿走或移除 1 張（包含這一次）。', { req: ['same_rank', 2] }),
   // 餘燼系列
-  C('餘燼小鬼', 'monster', '被破壞進墓地時：從額外牌組或墓地把 1 張「餘燼」魔陷加入手牌。', M('♥', 3, { req: ['any', 1], mode: 'material', series: '餘燼', trig: { destroyed: true } })),
+  C('餘燼小鬼', 'monster', '被破壞進墓地時：從額外牌組或墓地把 1 張「餘燼」魔陷加入手牌。', M('♥', 3, { req: ['hearts', 1], mode: 'material', from: 'hand', series: '餘燼', trig: { destroyed: true } })),
   C('餘燼騎士', 'monster', '攻擊時牌值 +2。', M('♥', 9, { req: ['red', 2], mode: 'material', series: '餘燼', gyReq: { n: 1, series: '餘燼', seriesMin: 1, to: 'under' } })),
   C('餘燼重燃', 'spell', '從墓地召喚 1 隻「餘燼」怪獸，不用付條件，不算墓地的每回合一次。', { req: ['red', 2], series: '餘燼' }),
   C('餘燼之王', 'monster', '只能從額外牌組召喚。召喚成功時：對方場上 1 隻怪獸回額外牌組（它的命牌素材洗回牌堆、術卡素材進墓地）。', M('♥', 13, { series: '餘燼', gyReq: { n: 3, series: '餘燼', seriesMin: 3, to: 'extra' }, trig: { summoned: true }, extraOnly: true })),
@@ -576,7 +583,7 @@ const POOL = [
     M('♣', 3, { req: ['sum3', 1], series: '圓舞曲', trig: { summoned: true } })),
   C('圓舞曲・主旋律', 'monster', '此卡名的①②效果 1 回合各只能使用 1 次。①用條件召喚成功時：可以破壞對方場上最多 N 張卡（N = 代價裡對方的卡的張數），那之後可以從牌堆抽和破壞張數相同的牌。②把這張卡回額外牌組來發動：從額外牌組或墓地盡可能召喚「圓舞曲・主旋律」以外的「圓舞曲」怪獸，最多 N 隻（N = 召喚這張卡時的代價張數，不用付條件）。',
     M('♠', 6, { req: ['atleast', 2], mode: 'return', needSeries: '圓舞曲', series: '圓舞曲', trig: { summoned: true } })),
-  C('圓舞曲・迴旋', 'trap', '此卡名的①②③效果 1 回合各只能使用 1 次，一次發動選 1 個。①從額外牌組召喚 1 隻「圓舞曲」怪獸（照常付條件，條件也可以用額外牌組 1 隻「圓舞曲」怪獸）。②從額外牌組召喚 1 隻「圓舞曲」怪獸（照常付條件，條件也可以用墓地 1 隻「圓舞曲」怪獸）。③從額外牌組召喚 1 隻「圓舞曲」怪獸（照常付條件；召喚牌值 3 以上的怪獸時，條件也可以用對方的槽和對方場上合計最多 2 張卡）。自己場上有「圓舞曲・第一拍」時，①可以在這張卡蓋放的回合捨棄 1 張手牌來發動；有「圓舞曲・第二拍」時，②也一樣。',
+  C('圓舞曲・迴旋', 'trap', '此卡名的①②③效果 1 回合各只能使用 1 次，一次發動選 1 個。①從額外牌組召喚 1 隻「圓舞曲」怪獸（照常付條件，條件也可以用額外牌組 1 隻「圓舞曲」怪獸）。②從額外牌組召喚 1 隻「圓舞曲」怪獸（照常付條件，條件也可以用墓地 1 隻「圓舞曲」怪獸）。③從額外牌組召喚 1 隻「圓舞曲」怪獸（照常付條件；召喚牌值 3 以上的怪獸時，條件也可以用對方的槽和對方場上合計最多 2 張卡）。自己場上有「圓舞曲・第一拍」時，①可以在這張卡蓋放的回合捨棄 1 張手牌來發動；有「圓舞曲・第二拍」時，②也一樣；有「圓舞曲・第三拍」時，③也一樣。',
     { req: ['sum3', 1], series: '圓舞曲' })
 ];
 // 第三批：散卡（名稱暫定；拓展效果種類）
@@ -586,12 +593,12 @@ POOL.push(
   C('萬花筒', 'monster', '這張卡當條件時，可以當成任意花色。', M('♦', 4, { req: ['any', 2], mode: 'material', wildSuit: true })),
   C('計分員', 'monster', '自己槽裡每有 1 組對子，這張卡戰鬥時牌值 +1（最多 +3）。', M('♣', 6, { req: ['diff_suit', 3], mode: 'material' })),
   C('當鋪老闆', 'monster', '1 回合 1 次：把自己槽中 1 張命牌疊到這張卡下方當素材來發動：從牌堆抽 1 張。', M('♦', 5, { req: ['any', 2], mode: 'material' })),
-  C('占卜師', 'monster', '召喚成功時：看牌堆最上面 3 張，選 1 張放回最上面，其他放到牌堆最下面。', M('♥', 3, { req: ['any', 1], mode: 'material', trig: { summoned: true } })),
+  C('占卜師', 'monster', '此卡名的②效果 1 回合 1 次。①召喚成功時：看牌堆最上面 3 張，選 1 張放回最上面，其他放到牌堆最下面。②對方把命牌加入手牌時，拔除這張卡的 1 個素材來發動：確認那些加入手牌的命牌，可以從中選 1 張和拔除的素材同色的命牌，捨棄。', M('♥', 3, { req: ['color', 2], mode: 'material', from: 'hand_poker', trig: { summoned: true } })),
   C('荊棘衛士', 'monster', '被戰鬥破壞時：可以破壞攻擊它的那隻怪獸。', M('♠', 4, { req: ['color', 2], mode: 'material' })),
   C('談判', 'spell', '對方選 1 個：讓你從牌堆抽 2 張；或讓你從對方的槽選 1 張命牌放進自己的槽（不算使用次數）。', { req: ['same_rank', 2] }),
   C('黑市', 'spell', '永續魔法：發動後留在自己的魔陷區。只要這張卡在場上，雙方每回合可以使用對方槽的張數各 +1。', { req: ['same_rank', 2], continuous: true }),
   C('強化裝甲', 'spell', '以自己場上 1 隻怪獸為對象：把這張卡疊到那隻怪獸下方當素材。有這張卡當素材的怪獸，戰鬥時牌值 +3。', { req: ['any', 1] }),
-  C('透視', 'spell', '看對方的命牌手牌，選其中 1 張洗回牌堆。', { req: ['any', 1] }),
+  C('透視', 'spell', '永續魔法：發動後留在自己的魔陷區。只要這張卡在場上，對方的手牌要公開。', { req: ['straight', 3], continuous: true }),
   C('偽裝', 'trap', '對方宣言攻擊時：自己場上 1 隻怪獸這回合戰鬥時牌值 +3。', { req: ['any', 1] }),
   C('禁咒', 'trap', '對方發動魔法時：那張魔法無效。', { req: ['same_rank', 2] }),
   C('乾涸', 'trap', '對方的結束階段：這次對方的補槽最多只能加 1 張。', { req: ['any', 1] })
@@ -631,8 +638,8 @@ function reqName(req) {
   return {
     any: `任意 ${n} 張`, same_rank: n === 2 ? '對子' : n === 3 ? '三條' : `${n} 張同牌值`,
     suit: `${n} 張同花色`, color: `${n} 張同色`, red: `${n} 張紅色`, straight: `${n} 張順子`,
-    monster_plus: `場上 1 隻怪獸 + 任意 ${n} 張`, monsters: `場上 ${n} 隻怪獸`,
-    sum3: '牌值合計是 3 的倍數', atleast: `${n} 張以上`, diff_suit: `${n} 張花色都不同`
+    monster_plus: `場上 1 隻怪獸 + 任意 ${n} 張`, monsters: req[2] ? `場上 ${n} 隻牌值 ${req[2]} 以上的怪獸` : `場上 ${n} 隻怪獸`,
+    sum3: '牌值合計是 3 的倍數', atleast: `${n} 張以上`, diff_suit: `${n} 張花色都不同`, hearts: `${n} 張紅心`
   }[k];
 }
 function gyName(g) {
@@ -648,8 +655,9 @@ function condDesc(d, which = 'main') {
   const parts = [];
   if (d.req) {
     let s = reqName(d.req);
-    if (d.from === 'hand') s = '手牌 ' + s.replace('任意 ', '');
     if (d.mode === 'gift') return '條件：1 張命牌手牌放進對方的槽';
+    if (d.from === 'hand') s = '手牌 ' + s.replace('任意 ', '');
+    if (d.from === 'hand_poker') s = '命牌手牌 ' + s.replace('任意 ', '');
     parts.push(s);
   }
   if (d.gyReq) parts.push(gyName(d.gyReq));
@@ -659,6 +667,7 @@ function condDesc(d, which = 'main') {
 
 function unit(x) {   // [牌值, 花色, 萬用, 怪獸, 任意花色]；魔陷沒有花色牌值 → null
   if (x.isPoker) return x.joker ? [0, null, true, false, true] : [x.rank, x.suit, false, false, false];
+  if (x.asPoker) return [x.d.rank, x.d.suit, false, false, false];   // 槽裡當成命牌的術卡（亡骸巨兵）
   if (x.d.kind === 'monster') return [x.d.rank, x.d.suit, false, true, !!x.d.wildSuit];
   return null;
 }
@@ -675,13 +684,14 @@ function match(req, items) {
   if (kind === 'any') return true;
   if (kind === 'monster_plus') return us.some(u => u && u[3]);
   if (us.some(u => !u)) return false;
-  if (kind === 'monsters') return us.every(u => u[3]);
+  if (kind === 'monsters') return us.every(u => u[3] && u[0] >= (req[2] || 0));
   const fixed = us.filter(u => !u[2]), fixedS = us.filter(u => !u[4]);   // fixedS：花色固定的卡
   switch (kind) {
     case 'same_rank': return new Set(fixed.map(u => u[0])).size <= 1;
     case 'suit': return new Set(fixedS.map(u => u[1])).size <= 1;
     case 'color': return new Set(fixedS.map(u => RED.has(u[1]))).size <= 1;
     case 'red': return fixedS.every(u => RED.has(u[1]));
+    case 'hearts': return fixedS.every(u => u[1] === '♥');
     case 'diff_suit': return new Set(fixedS.map(u => u[1])).size === fixedS.length;
     case 'straight': {
       const rs = fixed.map(u => u[0]);
@@ -699,16 +709,16 @@ function stdFeasible(req, own, opp, q, needSet) {
   if (needSet && !own.some(isField)) return false;
   if (kind === 'any') return own.length + q >= size;
   if (kind === 'monster_plus') return own.some(c => !c.isPoker && c.d.kind === 'monster') && own.length + q >= size;
-  if (kind === 'monsters') return own.filter(c => !c.isPoker && c.d.kind === 'monster').length >= n;
+  if (kind === 'monsters') return own.filter(c => !c.isPoker && c.d.kind === 'monster' && c.d.rank >= (req[2] || 0)).length >= n;
   const ownC = own.filter(c => unit(c)), oppC = opp.filter(c => unit(c));
   const oj = ownC.filter(c => unit(c)[2]).length, pj = oppC.filter(c => unit(c)[2]).length;
-  if (kind === 'same_rank' || kind === 'suit' || kind === 'color' || kind === 'red') {
-    const key = kind === 'same_rank' ? u => u[0] : kind === 'suit' ? u => u[1] : u => RED.has(u[1]);
+  if (kind === 'same_rank' || kind === 'suit' || kind === 'color' || kind === 'red' || kind === 'hearts') {
+    const key = kind === 'same_rank' ? u => u[0] : kind === 'suit' ? u => u[1] : kind === 'hearts' ? u => u[1] === '♥' : u => RED.has(u[1]);
     const g = new Map(), og = new Map(), gf = new Map();
     for (const c of ownC) { const u = unit(c); if (u[2]) continue; const k = key(u); g.set(k, (g.get(k) || 0) + 1); if (isField(c)) gf.set(k, true); }
     for (const c of oppC) { const u = unit(c); if (u[2]) continue; const k = key(u); og.set(k, (og.get(k) || 0) + 1); }
     let keys = [...new Set([...g.keys(), ...og.keys()])];
-    if (kind === 'red') keys = [true];
+    if (kind === 'red' || kind === 'hearts') keys = [true];
     let best = needSet ? -1 : oj + Math.min(q, pj);
     for (const k of keys) {
       if (needSet && !gf.get(k)) continue;
@@ -804,6 +814,7 @@ class PState {
     this.mons = Array(CFG.ZONES).fill(null); this.sts = Array(CFG.ZONES).fill(null);
     this.usedOpp = 0; this.bonusOpp = 0; this.gyUsed = 0; this.noAttackTurn = -1; this.guard = null;
     this.summoned = {}; this.attackers = new Set(); this.once = {}; this.incomeCap = null;
+    this.bigLock = -1;   // 亡骸巨兵①：這個回合不能召喚牌值 12 以上的怪獸
   }
 }
 class FieldMon {
@@ -872,18 +883,48 @@ class Game {
     return q;
   }
   draw(pid, n = 1, why = '') {
-    let k = 0;
+    let k = 0; const got = [];
     for (; k < n; k++) {
       if (!this.deck.length) { this.log(`牌堆沒牌了，${why}抽不到`); break; }
-      this.P[pid].hand.push(this.deck.pop());
+      const c = this.deck.pop(); this.P[pid].hand.push(c); got.push(c);
     }
     if (why && k) this.log(`${this.nm(pid)} 因 ${why} 抽 ${k} 張`);
+    this.handAdded(pid, got);
   }
-  toDeck(c) { this.deck.splice(this.rng.int(this.deck.length + 1), 0, c); }
+  // 命牌加入手牌之後：對方的占卜師②可以觸發
+  handAdded(pid, cards) {
+    if (!cards.length) return;
+    for (const fm of this.P[1 - pid].mons) {
+      if (fm && fm.card.name === '占卜師') this.triggers.push({ pid: 1 - pid, card: fm.card, event: 'opp_add', cards: cards.slice(), fm });
+    }
+  }
+  // 命牌洗回牌堆。槽裡當成命牌的術卡（亡骸巨兵）離開槽時改進持有者的墓地
+  toDeck(c) {
+    if (!c.isPoker) { this.ghostOut(c); return; }
+    this.deck.splice(this.rng.int(this.deck.length + 1), 0, c);
+  }
+  ghostIn(c, pid) { c.asPoker = true; this.P[pid].slot.push(c); }
+  ghostOut(c) {
+    c.asPoker = false; this.P[c.owner].gy.push(c);
+    this.log(`${c} 離開槽，回到 ${this.nm(c.owner)} 的墓地`);
+  }
+  // 怪獸從場上離開（破壞、回額外牌組、送墓地、當成條件）：亡骸巨兵②改成放進對方的槽
+  monsterOff(ctrl, card, dest) {
+    if (card.d.toOppSlot) {
+      this.ghostIn(card, 1 - ctrl);
+      this.log(`→ ${card} 離開場上，改放進 ${this.nm(1 - ctrl)} 的槽，當成命牌 ${card.d.suit}${rankStr(card.d.rank)}（槽 ${this.slotScore(1 - ctrl)}/${this.hp}）`, null, null, 'fx');
+      return 'slot';
+    }
+    (dest === 'extra' ? this.P[card.owner].extra : this.P[card.owner].gy).push(card);
+    return dest;
+  }
   returnMaterial(m) { if (m.isPoker) this.toDeck(m); else this.P[m.owner].gy.push(m); }
   freeZone(zones) { const i = zones.indexOf(null); return i < 0 ? null : i; }
   summonLimit(d) { return !CFG.SUMMON_LIMIT ? Infinity : d.rank <= 3 ? 3 : d.rank <= 9 ? 2 : 1; }
-  canSummonMore(p, card) { return (this.P[p].summoned[card.name] || 0) < this.summonLimit(card.d); }
+  canSummonMore(p, card) {
+    if (card.d.rank >= 12 && this.P[p].bigLock === this.turn) return false;
+    return (this.P[p].summoned[card.name] || 0) < this.summonLimit(card.d);
+  }
   takeFromSlot(owner, c) {   // 對方從 owner 的槽拿走或移除一張（壁壘會限制）
     const g = this.P[owner].guard;
     if (g && g.left <= 0) return false;
@@ -1008,6 +1049,10 @@ class Game {
     const me = this.P[p], op = this.P[1 - p], mode = spec.mode;
     const r = { mats: [], toSlot: [], toGy: [], gift: [], toExtra: [], toDeck: [], taken: [], costCount: 0, oppUsed: 0 };
     const route = c => {   // 支付的卡放到該去的地方
+      if (c.asPoker) {   // 槽裡當成命牌的術卡：換到自己的槽還是命牌；當素材或回牌組時改進持有者的墓地
+        if (mode === 'cost') { me.slot.push(c); r.toSlot.push(c); return; }
+        c.asPoker = false; this.P[c.owner].gy.push(c); r.toGy.push(c); return;
+      }
       if (mode === 'material') { r.mats.push(c); return; }
       if (c.isPoker) {
         if (mode === 'gift') { op.slot.push(c); r.gift.push(c); }
@@ -1029,7 +1074,8 @@ class Game {
       const loc = this.locateCard(c);
       if (loc.pid !== p) { r.oppUsed++; if (loc.where === 'slot') r.taken.push(c); }
       stacked(this.liftCard(c));
-      route(c);
+      if (loc.where === 'mon' && c.d.toOppSlot) this.monsterOff(loc.pid, c, 'gy');
+      else route(c);
     }
     r.costCount = std.length;
     for (const c of pay.gy) {
@@ -1072,7 +1118,8 @@ class Game {
     const ps = this.P[owner];
     const obj = kind === 'mon' ? ps.mons[z] : ps.sts[z];
     if (kind === 'mon') ps.mons[z] = null; else ps.sts[z] = null;
-    ps.gy.push(obj.card);
+    const ghost = kind === 'mon' && obj.card.d.toOppSlot;   // 亡骸巨兵②：改放進對方的槽
+    if (!ghost) ps.gy.push(obj.card);
     const sealed = kind === 'mon' && obj.sealTurn === this.turn;
     const moved = [];
     for (const m of obj.materials) {
@@ -1084,20 +1131,21 @@ class Game {
     if (moved.length && stealTo !== null) extra = `，素材 ${fmt(moved)} 進 ${this.nm(stealTo)} 的槽`;
     else if (moved.length) extra = `，封存：素材 ${fmt(moved)} 進 ${this.nm(owner)} 的槽`;
     else if (obj.materials.length) extra = '，命牌素材洗回牌堆、術卡素材進墓地';
-    this.log(`✖ ${this.nm(owner)} 的 ${obj.card} 被破壞，進墓地${extra}`, null, null, 'kill');
+    this.log(`✖ ${this.nm(owner)} 的 ${obj.card} 被破壞${ghost ? '' : '，進墓地'}${extra}`, null, null, 'kill');
+    if (ghost) this.monsterOff(owner, obj.card, 'gy');
     if (obj.card.d.trig && obj.card.d.trig.destroyed) this.triggers.push({ pid: owner, card: obj.card, event: 'destroyed' });
   }
   leaveField(owner, z, to) {   // 不是破壞的離場：to = extra（被彈回額外牌組，素材回牌組）／gy（當成代價送墓地，素材命牌進自己的槽）
     const ps = this.P[owner], fm = ps.mons[z];
     ps.mons[z] = null;
-    (to === 'extra' ? this.P[fm.card.owner].extra : this.P[fm.card.owner].gy).push(fm.card);
+    this.monsterOff(owner, fm.card, to);
     for (const m of fm.materials) {
       if (to === 'gy' && CFG.STACKED_MATERIALS === 'slot') (m.isPoker ? ps.slot : this.P[m.owner].gy).push(m);
       else this.returnMaterial(m);
     }
     return fm;
   }
-  placeMonster(p, card, mats, via = '', info = null) {
+  placeMonster(p, card, mats, via = '', info = null, counted = false) {   // counted：宣言召喚時已經算過召喚次數
     const me = this.P[p], z = this.freeZone(me.mons);
     if (z === null) return null;
     const fm = new FieldMon(card, mats);
@@ -1105,9 +1153,10 @@ class Game {
     fm.costCount = info.costCount; fm.oppUsed = info.oppUsed;
     if (card.d.immune) fm.immuneUntil = this.turn + 1;
     me.mons[z] = fm;
-    me.summoned[card.name] = (me.summoned[card.name] || 0) + 1;
+    if (!counted) me.summoned[card.name] = (me.summoned[card.name] || 0) + 1;
     this.stat('summon:' + card.name);
     this.log(`→ ${card} 登場${via}`);
+    if (card.name === '亡骸巨兵') { me.bigLock = this.turn; this.log(`${this.nm(p)} 這回合不能再召喚牌值 12 以上的怪獸`); }
     if (card.d.trig && card.d.trig.summoned) this.triggers.push({ pid: p, card, event: 'summoned', info, fm });
     return fm;
   }
@@ -1186,16 +1235,16 @@ class Game {
     switch (c.name) {
       case '號令': return this.deck.length > 0;
       case '掠奪令': return op.mons.some(Boolean) || op.sts.some(Boolean);
-      case '重整': return me.slot.length > 0;
+      case '重整': return me.slot.some(c => c.isPoker);
       case '輪迴': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.rank <= 8 && this.canSummonMore(p, x));
       case '餘燼重燃': return free && me.gy.some(x => x.d.kind === 'monster' && x.d.series === '餘燼' && this.canSummonMore(p, x));
       case '傳承': return this.inheritPairs(p).length > 0;
-      case '回流': return me.slot.length >= 2;
+      case '回流': return me.slot.length >= 3;
       case '借道': return true;
       case '談判': return this.deck.length > 0 || op.slot.length > 0;
       case '黑市': return this.freeZone(me.sts) !== null;
       case '強化裝甲': return me.mons.some(Boolean);
-      case '透視': return op.hand.length > 0;
+      case '透視': return this.freeZone(me.sts) !== null;
     }
     return false;
   }
@@ -1235,11 +1284,13 @@ class Game {
       this.log(`第 ${this.turn} 回合：${this.nm(p)}`, null, null, 'turn');
       if (this.P[p].guard) { this.P[p].guard = null; this.log(`${this.nm(p)} 的壁壘效果結束`); }
       if (this.slotScore(p) >= this.hp) return this.finish(p, '槽滿');
+      let drew = null;
       if (this.turn > 1 || CFG.P1_DRAWS_TURN1) {
         if (!this.deck.length) return this.finish(1 - p, '牌庫耗盡');
-        this.P[p].hand.push(this.deck.pop());
+        drew = this.deck.pop(); this.P[p].hand.push(drew);
       }
       this.resetTurn(p);
+      if (drew) { this.handAdded(p, [drew]); await this.flushTriggers(); this.check(); }
       this.onEvent('state');
       for (let i = 0; i < 80; i++) {
         const acts = this.legalMain(p);
@@ -1350,6 +1401,7 @@ class Game {
     if (!pay) return null;
     remove(src === 'extra' ? me.extra : me.gy, card);
     if (src === 'gy') me.gyUsed++;
+    me.summoned[card.name] = (me.summoned[card.name] || 0) + 1;   // 宣言召喚時就算次數：被無效也不退
     const r = this.takePayment(p, pay, spec);
     const link = new Link('summon', p, card, { mats: r.mats, redirect: opts.redirect || null, info: { costCount: r.costCount, oppUsed: r.oppUsed } });
     link.oppTaken = r.taken;
@@ -1407,7 +1459,8 @@ class Game {
     const fm = me.mons[z]; fm.used.add('ign');
     if (fm.card.name === '當鋪老闆') {
       const c = await this.pickTarget(p, '代價：選自己槽中 1 張命牌疊到當鋪老闆下方', me.slot, 'slot_pay');
-      remove(me.slot, c); fm.materials.push(c);
+      remove(me.slot, c);
+      if (c.isPoker) fm.materials.push(c); else this.ghostOut(c);
       this.log(`${this.nm(p)} 發動 ${fm.card} 的效果：槽中 ${c} 疊到下方當素材`);
       return new Link('effect', p, fm.card, { fm });
     }
@@ -1450,6 +1503,7 @@ class Game {
 
   // ── 圓舞曲 ──
   hasOnField(p, name) { return this.P[p].mons.some(f => f && f.card.name === name); }
+  handRevealed(pid) { return this.P[1 - pid].sts.some(st => st && st.faceUp && st.card.name === '透視'); }   // 透視：pid 的手牌公開
   waltzIgniteOk(p, fm) {
     const me = this.P[p], op = this.P[1 - p], name = fm.card.name;
     if (!isWaltzMon(fm.card)) return false;
@@ -1583,10 +1637,7 @@ class Game {
     const out = [];
     for (const e of [1, 2, 3]) {
       if (me.once[st.card.name + '#' + e]) continue;
-      if (setNow) {   // 蓋放的回合：只有①②，而且要第一拍／第二拍在場、捨棄 1 張手牌
-        if (e === 3) continue;
-        if (!this.hasOnField(p, e === 1 ? '圓舞曲・第一拍' : '圓舞曲・第二拍')) continue;
-      }
+      if (setNow && !this.hasOnField(p, ['', '圓舞曲・第一拍', '圓舞曲・第二拍', '圓舞曲・第三拍'][e])) continue;   // 蓋放的回合：要對應的拍子在場，捨棄 1 張手牌
       if (setNow ? this.discardOpts(p, e).length : this.waltzTargets(p, e).length) out.push(e);
     }
     return out;
@@ -1740,6 +1791,7 @@ class Game {
       if (me.slot.includes(c)) remove(me.slot, c);
       else if (t.data.mats && t.data.mats.includes(c)) remove(t.data.mats, c);
       else if (this.deck.includes(c)) remove(this.deck, c);
+      else if (!c.isPoker && this.P[c.owner].gy.includes(c)) { remove(this.P[c.owner].gy, c); c.asPoker = true; }
       op.slot.push(c);
       if (op.guard) op.guard.left++;
     }
@@ -1758,7 +1810,9 @@ class Game {
     const me = this.P[t.pid], op = this.P[1 - t.pid];
     switch (t.card.name) {
       case '斥候': return this.deck.length > 0;
-      case '占卜師': return this.deck.length > 0;
+      case '占卜師':
+        if (t.event === 'opp_add') return !me.once['占卜師#2'] && me.mons.includes(t.fm) && t.fm.materials.length > 0;
+        return this.deck.length > 0;
       case '荊棘衛士': return op.mons.includes(t.attacker);
       case '餘燼之王': return op.mons.some(Boolean);
       case '餘燼小鬼': return me.gy.includes(t.card) && [...me.extra, ...me.gy].some(c => c.d.series === '餘燼' && c.d.kind !== 'monster');
@@ -1769,15 +1823,31 @@ class Game {
     }
     return false;
   }
-  onceKey(t) { return isWaltzMon(t.card) ? t.card.name + '#1' : null; }   // 圓舞曲怪獸的①：此卡名 1 回合 1 次
+  onceKey(t) {   // 圓舞曲怪獸的①、占卜師的②：此卡名 1 回合 1 次
+    if (t.event === 'opp_add') return t.card.name + '#2';
+    return isWaltzMon(t.card) ? t.card.name + '#1' : null;
+  }
+  triggerPrompt(t) {
+    if (t.event === 'opp_add') return `${this.nm(1 - t.pid)} 把 ${t.cards.length} 張命牌加入手牌：要發動 ${t.card.d.name} 的效果②嗎？`;
+    return null;
+  }
+  async payTrigger(t) {   // 觸發效果的代價（發動時付）
+    if (t.event !== 'opp_add') return;
+    const fm = t.fm, mopts = fm.materials.map(x => ({ label: String(x), obj: x, card: x }));
+    const m = mopts.length === 1 ? mopts[0].obj : mopts[await this.decide(t.pid, 'target', { prompt: '占卜師②：選擇要拔除的素材（同色的命牌才能捨棄）', opts: mopts, kind: 'detach' })].obj;
+    t.color = m.isPoker ? (m.joker ? 'any' : RED.has(m.suit) ? 'red' : 'black') : null;
+    this.log(`${this.nm(t.pid)} 拔除 ${t.card} 的素材 ${m}`);
+    await this.detach(t.pid, fm, m);
+  }
   async flushTriggers() {
     while (this.triggers.length) {
       const t = this.triggers.shift();
       if (!this.triggerOk(t)) continue;
-      if (!await this.decide(t.pid, 'trigger', { card: t.card, event: t.event })) continue;
+      if (!await this.decide(t.pid, 'trigger', { card: t.card, event: t.event, prompt: this.triggerPrompt(t) })) continue;
       const key = this.onceKey(t); if (key) this.P[t.pid].once[key] = true;
-      this.stat('trigger:' + t.card.name);
-      this.log(`⚡ ${this.nm(t.pid)} 發動 ${t.card} 的效果`, null, null, 'fx');
+      this.stat('trigger:' + t.card.name + (t.event === 'opp_add' ? '#2' : ''));
+      this.log(`⚡ ${this.nm(t.pid)} 發動 ${t.card} 的效果${t.event === 'opp_add' ? '②' : ''}`, null, null, 'fx');
+      await this.payTrigger(t);
       await this.runChain(new Link('trigger', t.pid, t.card, { trig: t }));
     }
   }
@@ -1791,7 +1861,7 @@ class Game {
     const p = link.pid, me = this.P[p], op = this.P[1 - p], card = link.card;
     switch (link.kind) {
       case 'summon': {
-        const fm = this.placeMonster(p, card, link.data.mats, '', link.data.info);
+        const fm = this.placeMonster(p, card, link.data.mats, '', link.data.info, true);
         if (!fm) {
           this.log(`沒有空的怪獸區，${card} 召喚失敗`);
           me.gy.push(card); for (const m of link.data.mats) this.returnMaterial(m); return;
@@ -1829,9 +1899,9 @@ class Game {
       case '號令': this.draw(p, 2, '號令'); break;
       case '掠奪令': this.destroyTarget(p, link.data.target); break;
       case '重整': {
-        if (!me.slot.length) break;
-        const take = await this.pickTarget(p, '從槽中取回哪張命牌？', me.slot, 'reorg_take');
-        remove(me.slot, take); me.hand.push(take);
+        if (!me.slot.some(c => c.isPoker)) break;
+        const take = await this.pickTarget(p, '從槽中取回哪張命牌？', me.slot.filter(c => c.isPoker), 'reorg_take');
+        remove(me.slot, take); me.hand.push(take); this.handAdded(p, [take]);
         const put = await this.pickTarget(p, '放哪張命牌進槽？', me.hand, 'reorg_place');
         remove(me.hand, put); me.slot.push(put);
         this.log(`重整：${take} 回手牌，${put} 進槽`);
@@ -1861,12 +1931,12 @@ class Game {
       }
       case '回流': {
         const back = [];
-        for (let i = 0; i < 2 && me.slot.length; i++) {
-          const c = await this.pickTarget(p, `選要洗回牌堆的命牌（${i + 1}/2）`, me.slot, 'reflow');
+        for (let i = 0; i < 3 && me.slot.length; i++) {
+          const c = await this.pickTarget(p, `選要洗回牌堆的命牌（${i + 1}/3）`, me.slot, 'reflow');
           remove(me.slot, c); this.toDeck(c); back.push(c);
         }
         this.log(`回流：${fmt(back)} 洗回牌堆`);
-        this.draw(p, 3, '回流');
+        this.draw(p, 2, '回流');
         break;
       }
       case '借道': me.bonusOpp += 2; this.log(`${this.nm(p)} 本回合使用對方槽的次數 +2`); break;
@@ -1899,12 +1969,11 @@ class Game {
         return true;
       }
       case '透視': {
-        if (!op.hand.length) break;
-        const seen = fmt(op.hand);
-        const c = await this.pickTarget(p, '透視：對方的命牌手牌，選 1 張洗回牌堆', op.hand, 'peek');
-        remove(op.hand, c); this.toDeck(c);
-        this.log(`${this.nm(p)} 看了對方的命牌手牌，把 ${c} 洗回牌堆`, `${this.nm(p)} 看到對方的命牌手牌 ${seen}，把 ${c} 洗回牌堆`, p);
-        break;
+        const z = this.freeZone(me.sts);
+        if (z === null) { this.log('沒有空的魔陷區，透視進墓地'); return false; }
+        me.sts[z] = new FieldST(card, [], this.turn, true);
+        this.log(`透視留在 ${this.nm(p)} 的魔陷區：${this.nm(1 - p)} 的手牌要公開`);
+        return true;
       }
     }
     return false;
@@ -1953,6 +2022,20 @@ class Game {
     switch (link.card.name) {
       case '斥候': this.draw(p, 1, '斥候'); break;
       case '占卜師': {
+        const trig = link.data.trig;
+        if (trig.event === 'opp_add') {
+          this.log(`${this.nm(p)} 確認 ${this.nm(1 - p)} 加入手牌的命牌：${fmt(trig.cards)}`, null, null, 'fx');
+          const same = c => trig.color === 'any' || c.joker || (trig.color && RED.has(c.suit) === (trig.color === 'red'));
+          const cands = trig.cards.filter(c => op.hand.includes(c) && trig.color && same(c));
+          if (!cands.length) { this.log('沒有同色的命牌可以捨棄'); break; }
+          const opts = cands.map(c => ({ label: String(c), obj: c, card: c }));
+          opts.push({ label: '不捨棄', obj: null, card: null });
+          const c = opts[await this.decide(p, 'target', { prompt: '占卜師②：要捨棄哪一張？（和拔除的素材同色，捨棄後洗回牌堆）', opts, kind: 'oracle' })].obj;
+          if (!c) { this.log(`${this.nm(p)} 選擇不捨棄`); break; }
+          remove(op.hand, c); this.toDeck(c); this.stat('oracle_discard');
+          this.log(`→ ${this.nm(1 - p)} 的 ${c} 被捨棄，洗回牌堆`, null, null, 'kill');
+          break;
+        }
         const top = this.deck.slice(-3);   // 陣列尾端是牌堆最上面
         if (!top.length) break;
         const c = await this.pickTarget(p, '占卜師：牌堆最上面的牌（左邊是最上面），選 1 張放回最上面，其他放到最下面', top.slice().reverse(), 'scry');
@@ -2081,9 +2164,11 @@ class Game {
   check() {   // 張數守恆
     let n = this.deck.length; const owned = [0, 0];
     for (const ps of this.P) {
-      if (!ps.slot.every(c => c.isPoker)) throw new Error('槽裡出現術卡');
+      if (!ps.slot.every(c => c.isPoker || c.asPoker)) throw new Error('槽裡出現術卡');
       if (!ps.hand.every(c => c.isPoker) || ps.ghand.some(c => c.isPoker)) throw new Error('手牌種類錯誤');
-      n += ps.hand.length + ps.slot.length;
+      for (const c of [...ps.extra, ...ps.ghand, ...ps.gy]) if (c.asPoker) throw new Error('槽外的術卡還標成命牌');
+      n += ps.hand.length + ps.slot.filter(c => c.isPoker).length;
+      for (const c of ps.slot) if (!c.isPoker) owned[c.owner]++;
       for (const c of [...ps.extra, ...ps.ghand, ...ps.gy]) owned[c.owner]++;
       for (const h of [...ps.mons, ...ps.sts]) {
         if (!h) continue;
@@ -2100,7 +2185,7 @@ class Game {
     for (const ps of this.P) {
       parts.push(ids(ps.hand), ids(ps.slot), ids(ps.gy), ids(ps.extra), ids(ps.ghand), ps.usedOpp, ps.gyUsed, ps.bonusOpp,
         ps.guard ? ps.guard.left : '-',
-        ps.mons.map(f => (f ? f.card.uid + ':' + ids(f.materials) + 'a' + f.atkCount : '-')).join('|'), ps.attackers.size, JSON.stringify(ps.summoned), Object.keys(ps.once).sort().join(','),
+        ps.mons.map(f => (f ? f.card.uid + ':' + ids(f.materials) + 'a' + f.atkCount : '-')).join('|'), ps.attackers.size, JSON.stringify(ps.summoned), Object.keys(ps.once).sort().join(','), ps.bigLock,
         ps.sts.map(s => (s ? s.card.uid + ':' + ids(s.materials) : '-')).join('|'));
     }
     const s = parts.join(';'); let h = 5381;
@@ -2188,14 +2273,14 @@ class AIAgent {
       case '號令': case '掠奪令': case '輪迴': case '餘燼重燃': case '傳承': return true;
       case '重整': return this.wantReorg(me);
       case '借道': return op.slot.length >= 2;
-      case '回流': return me.hand.length <= 1 && g.slotScore(p) < g.hp - 3;
+      case '回流': return me.hand.length <= 1 && me.slot.length >= 3 && g.slotScore(p) < g.hp - 4;
       case '談判': return true;
       case '強化裝甲': {   // 只在 +3 能讓自己的怪獸打贏對方怪獸時用
         if (g.turn <= CFG.NO_ATTACK_TURNS || me.noAttackTurn === g.turn) return false;
         return me.mons.some(f => f && !f.attacked && !f.card.d.cantAttack && op.mons.some(d => d && g.battleRank(p, f, true) <= g.battleRank(1 - p, d, false) && g.battleRank(p, f, true) + 3 > g.battleRank(1 - p, d, false)));
       }
       case '黑市': return op.slot.length >= 1;
-      case '透視': return op.hand.length >= 1;
+      case '透視': return true;   // AI 本來就看得到全部；當成多 1 張補槽的永續卡
     }
     return false;
   }
@@ -2232,7 +2317,7 @@ class AIAgent {
     for (const i of get('attack')) {
       if (suicidal(acts[i])) continue;
       const a = acts[i], att = me.mons[a.z], dfm = op.mons[a.target];
-      const s = dfm.materials.length * 2 + dfm.card.d.rank - (dfm.immuneUntil >= g.turn ? 100 : 0);
+      const s = dfm.materials.length * 2 + dfm.card.d.rank + (dfm.card.d.toOppSlot ? 3 : 0) - (dfm.immuneUntil >= g.turn ? 100 : 0);
       if (s > 0 && (!best || s > best[0])) best = [s, i];
     }
     if (best) return best[1];
@@ -2249,10 +2334,12 @@ class AIAgent {
       const pay = pays[i], ext = pay.ext || [];
       let s = 3 * pay.opp.length + pay.opp.filter(c => c.joker).length
         - pay.own.reduce((t, c) => t + AIAgent.value(c, hand), 0) / 3 + this.rng.random() * 0.01;
+      s -= 4 * pay.own.filter(c => !c.isPoker && c.d.toOppSlot).length;   // 亡骸巨兵離場會進對方的槽
       for (const c of ext) {
         const loc = g.locateCard(c);
         if (loc.pid === p) { s += 1; continue; }   // 自己額外牌組或墓地的圓舞曲怪獸
         s += 3;
+        if (!c.isPoker && c.d.toOppSlot && loc.where === 'mon') s += 2;   // 對方的亡骸巨兵會進自己的槽
         if (loc.where === 'mon') { const fm = g.P[loc.pid].mons[loc.z]; s += 1 + fm.materials.filter(m => m.isPoker).length + fm.card.d.rank / 13; }
       }
       const n = pay.own.length + pay.opp.length + ext.length;
@@ -2282,7 +2369,7 @@ class AIAgent {
         const j = cards.findIndex(c => c.isPoker && c.joker);
         return j >= 0 ? j : this.rng.int(objs.length);
       }
-      case 'destroy': return argmax((c, i) => { const t = objs[i]; return t[0] === 'mon' ? t[2].materials.length * 2 + t[2].card.d.rank / 13 : 1.5; });
+      case 'destroy': return argmax((c, i) => { const t = objs[i]; return t[0] === 'mon' ? t[2].materials.length * 2 + t[2].card.d.rank / 13 + (t[2].card.d.toOppSlot ? 3 : 0) : 1.5; });
       case 'detach': case 'reorg_place': case 'reflow': return argmax(c => -AIAgent.value(c, g.P[p].hand) - (c.isPoker && c.joker ? 20 : 0));
       case 'bounce': case 'revive': case 'upgrade': case 'waltz_pick': case 'waltz_call': return argmax(c => c.d.rank);
       case 'slot_pay': return argmax(c => (c.joker ? -20 : 0) - c.rank / 20);
@@ -2295,7 +2382,8 @@ class AIAgent {
         return argmax(c => (atk && atk.data.target.card === c ? 100 : 0) + c.d.rank);
       }
       case 'hand_pay': case 'discard': return argmax(c => -AIAgent.value(c, g.P[p].hand) - (c.isPoker && c.joker ? 20 : 0));
-      case 'destroy_upto': return argmax((c, i) => { const t = objs[i]; return !t ? -1 : t[0] === 'mon' ? t[2].materials.length * 2 + t[2].card.d.rank / 13 + 1 : 1.5; });
+      case 'destroy_upto': return argmax((c, i) => { const t = objs[i]; return !t ? -1 : t[0] === 'mon' ? t[2].materials.length * 2 + t[2].card.d.rank / 13 + 1 + (t[2].card.d.toOppSlot ? 3 : 0) : 1.5; });
+      case 'oracle': return argmax(c => (!c ? -1 : (c.joker ? 20 : 0) + AIAgent.value(c, g.P[1 - p].hand)));
       case 'tribute': return argmax(c => -c.d.rank);
     }
     return this.rng.int(objs.length);
@@ -2797,13 +2885,15 @@ function markCls(key) {
   const M = app.M; if (!M || !key) return '';
   return (M.glow.has(key) ? ' glow' : '') + (M.chosen.has(key) ? ' chosen' : '') + (M.sel === key ? ' sel' : '');
 }
-function pokerHTML(c, size = '', key = null) {
-  const color = c.joker ? 'jk' : E.RED.has(c.suit) ? 'red' : '';
+function pokerHTML(c, size = '', key = null) {   // 命牌；槽裡當成命牌的術卡（亡骸巨兵）也用這個畫，加上 ghost 標記
+  const ghost = !c.isPoker;
+  const color = (c.joker ? 'jk' : E.RED.has(c.suit) ? 'red' : '') + (ghost ? ' ghost' : '');
   const face = c.joker ? '<b>鬼</b>' : `<b>${E.rankStr(c.rank)}</b><i>${c.suit}</i>`;
-  if (!key) return `<span class="pk ${color} ${size}">${face}</span>`;
-  return `<button class="pk ${color} ${size}${markCls(key)}" data-k="${key}" aria-label="${c.joker ? '鬼牌' : esc(String(c))}">${face}</button>`;
+  const label = c.joker ? '鬼牌' : ghost ? `${c.d.name}（當成命牌 ${c.suit}${E.rankStr(c.rank)}）` : String(c);
+  if (!key) return `<span class="pk ${color} ${size}" title="${esc(label)}">${face}</span>`;
+  return `<button class="pk ${color} ${size}${markCls(key)}" data-k="${key}" aria-label="${esc(label)}" title="${esc(label)}">${face}</button>`;
 }
-const chipHTML = c => (c.isPoker ? pokerHTML(c, 'chip') : `<span class="mchip">${esc(c.d.name)}</span>`);
+const chipHTML = c => (c.isPoker || c.asPoker ? pokerHTML(c, 'chip') : `<span class="mchip">${esc(c.d.name)}</span>`);
 function gcHTML(c, o = {}) {
   const d = c.d, key = o.key === undefined ? 'u' + c.uid : o.key;
   const head = d.kind === 'monster'
@@ -2846,6 +2936,7 @@ function holderOf(c) {
   return null;
 }
 function locate(ps, c) {
+  if (app.game.P.some(q => q.slot.includes(c))) return '槽';
   if (ps.extra.includes(c)) return '額外牌組';
   if (ps.ghand.includes(c)) return '手牌';
   if (ps.mons.some(f => f && f.card === c)) return '怪獸區';
@@ -2952,9 +3043,10 @@ function monTag(fm, key, pid) {
 function sideHTML(pid, near) {
   const g = app.game, ps = g.P[pid];
   const see = app.viewer === null || app.viewer === pid;
+  const shown = see || g.handRevealed(pid);   // 透視：對手的手牌公開
   const acting = !g.result && g.cur === pid;
   const head = `<div class="side-head"><span class="who">${esc(g.names[pid])}<span class="seat">${pid === 0 ? '先手' : '後手'}</span>${acting ? '<span class="acting">回合中</span>' : ''}</span>
-    <span>${see ? `命牌手牌 ${ps.hand.length}｜術卡手牌 ${ps.ghand.length}` : `手牌 ${ps.hand.length + ps.ghand.length} 張`}${see && app.viewer !== null ? '｜<button class="linkbtn" data-k="deck">確認牌組</button>' : ''}</span></div>`;
+    <span>${shown ? `${see ? '' : '手牌公開中｜'}命牌手牌 ${ps.hand.length}｜術卡手牌 ${ps.ghand.length}` : `手牌 ${ps.hand.length + ps.ghand.length} 張`}${see && app.viewer !== null ? '｜<button class="linkbtn" data-k="deck">確認牌組</button>' : ''}</span></div>`;
   const mons = `<div class="zrow"><div class="zones mons">${ps.mons.map(fm => {
     if (!fm) return '<span class="zone"></span>';
     return gcHTML(fm.card, Object.assign({ mats: fm.materials, cls: fm.attacked ? 'used' : '' }, monTag(fm, 'u' + fm.card.uid, pid)));
@@ -2966,6 +3058,9 @@ function sideHTML(pid, near) {
   if (see) {
     hand = `<div class="hand">${ps.hand.map(c => pokerHTML(c, '', 'u' + c.uid)).join('') || '<span class="note">沒有命牌手牌</span>'}`
       + (ps.ghand.length ? '<span class="sep"></span>' + ps.ghand.map(c => gcHTML(c, { cls: 'small' })).join('') : '') + '</div>';
+  } else if (shown) {
+    hand = `<div class="opp-hand revealed" aria-label="對手公開的手牌">${ps.hand.map(c => pokerHTML(c, 'small')).join('')}`
+      + (ps.ghand.length ? '<span class="sep"></span>' + ps.ghand.map(c => gcHTML(c, { cls: 'small' })).join('') : '') + (ps.hand.length + ps.ghand.length ? '' : '<span class="note">沒有手牌</span>') + '</div>';
   } else {
     const n = ps.hand.length + ps.ghand.length;
     hand = `<div class="opp-hand" aria-label="對手手牌 ${n} 張">${'<span class="pk back small"></span>'.repeat(n)}</div>`;
@@ -3368,15 +3463,18 @@ function openStatus() {
     if (see) {
       const byLoc = {};
       for (const c of ownedCards(pid)) (byLoc[locate(ps, c)] = byLoc[locate(ps, c)] || []).push(c);
-      extra = `<dt>15 張術卡的位置</dt><dd>${['額外牌組', '手牌', '怪獸區', '魔陷區', '墓地', '素材'].filter(k => byLoc[k]).map(k => `<b>${k}</b> ${group(byLoc[k])}`).join('<br>')}</dd>`;
+      extra = `<dt>15 張術卡的位置</dt><dd>${['額外牌組', '手牌', '怪獸區', '魔陷區', '墓地', '素材', '槽'].filter(k => byLoc[k]).map(k => `<b>${k}</b> ${group(byLoc[k])}`).join('<br>')}</dd>`;
     } else {
       const seen = [...ps.gy.filter(c => !c.isPoker), ...mons.map(f => f.card), ...sts.filter(st => st.faceUp).map(st => st.card),
         ...[...mons, ...sts].flatMap(h => h.materials.filter(m => !m.isPoker && m.owner === pid))];
-      extra = `<dt>看得到的術卡</dt><dd>${group(seen)}<br><small>額外牌組還有 ${ps.extra.length} 張、手牌 ${ps.hand.length + ps.ghand.length} 張看不到</small></dd>`;
+      const ghosts = g.P.flatMap(q => q.slot.filter(c => !c.isPoker && c.owner === pid));
+      if (g.handRevealed(pid)) seen.push(...ps.ghand);
+      seen.push(...ghosts);
+      extra = `<dt>看得到的術卡</dt><dd>${group(seen)}<br><small>額外牌組還有 ${ps.extra.length} 張${g.handRevealed(pid) ? '' : `、手牌 ${ps.hand.length + ps.ghand.length} 張`}看不到</small></dd>`;
     }
     return `<div class="status-col"><h4>${esc(g.names[pid])}（${pid === 0 ? '先手' : '後手'}）${me === pid ? '・你' : ''}</h4><dl class="status">
       <dt>血量槽</dt><dd>${g.slotScore(pid)} / ${g.hp}　${chips(ps.slot)}</dd>
-      <dt>手牌</dt><dd>${see ? `命牌 ${ps.hand.length} 張、術卡 ${ps.ghand.length} 張` : `${ps.hand.length + ps.ghand.length} 張`}</dd>
+      <dt>手牌</dt><dd>${see ? `命牌 ${ps.hand.length} 張、術卡 ${ps.ghand.length} 張` : g.handRevealed(pid) ? `公開中：${chips([...ps.hand, ...ps.ghand])}` : `${ps.hand.length + ps.ghand.length} 張`}</dd>
       <dt>額外牌組</dt><dd>${ps.extra.length} 張</dd>
       <dt>怪獸區</dt><dd>${monTxt}</dd><dt>魔陷區</dt><dd>${stTxt}</dd>
       <dt>墓地</dt><dd>${group(ps.gy)}</dd>${extra}</dl></div>`;
@@ -3520,7 +3618,7 @@ function ask(kind, pl, g, p, resolve) {
         cards: pl.opts.map(o => (o.t === 'trap' || o.t === 'waltz' ? g.P[p].sts[o.z].card : o.t === 'twin' ? g.P[p].mons[o.z].card : o.card)) });
     }
     case 'trigger':
-      return chooseModal({ title: `要發動 ${pl.card.d.name} 的效果嗎？`, desc: pl.card.d.text,
+      return chooseModal({ title: pl.prompt || `要發動 ${pl.card.d.name} 的效果嗎？`, desc: pl.card.d.text,
         options: ['發動'], noneLabel: '不發動', onPick: k => resolve(k === 0), cards: [pl.card] });
     case 'yesno':
       return chooseModal({ title: pl.prompt, options: ['是'], noneLabel: '否', onPick: k => resolve(k === 0) });

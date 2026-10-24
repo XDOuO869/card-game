@@ -264,7 +264,42 @@ button.pk, button.gc { padding: 0; }
 #mHint { min-height: 1.5em; }
 
 /* ── 組牌 ── */
-#builder { max-width: 1040px; margin: 0 auto; padding: 32px 20px 60px; }
+#builder, .page { max-width: 1040px; margin: 0 auto; padding: 32px 20px 60px; }
+.b-slot { font-size: 15px; color: var(--muted); font-family: inherit; margin-left: 8px; }
+.chk { color: var(--muted); font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+.b-row.locked { opacity: .5; }
+.own { font-size: 12px; color: var(--muted); margin-left: 6px; }
+.own.short { color: #f0a08f; }
+/* 稀有度 */
+.rar { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 4px; padding: 0 5px; margin-left: 6px; border: 1px solid currentColor; letter-spacing: .03em; }
+.rar.N { color: #a9bdb3; } .rar.R { color: #7fb2e5; } .rar.SR { color: #c99be0; }
+.rar.UR { color: var(--ink); background: linear-gradient(90deg, var(--brass), var(--brass-2)); border-color: var(--brass-2); }
+.role-chip { display: inline-block; font-size: 12px; border: 1px solid var(--brass); color: var(--brass-2); border-radius: 999px; padding: 1px 10px; }
+.profile-line { color: var(--text); font-size: 14px; gap: 14px; }
+/* 牌組空間 */
+.deck-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.deck-slot { background: rgba(0,0,0,.18); border: 1px solid var(--zone-line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 118px; }
+.deck-slot.empty { border-style: dashed; align-items: flex-start; justify-content: center; color: var(--muted); }
+.deck-slot.current { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
+.deck-slot h3 { margin: 0; font-size: 15px; color: var(--paper); display: flex; gap: 6px; align-items: baseline; }
+.deck-slot h3 small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.deck-slot .st { font-size: 12px; } .deck-slot .st.ok { color: var(--brass-2); } .deck-slot .st.bad { color: #f0a08f; }
+.deck-slot .keys { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.deck-slot .acts { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; }
+/* 抽卡 */
+.g-result { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.g-card { display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: 0; animation: gIn .45s ease forwards; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--zone-line); background: rgba(0,0,0,.18); position: relative; }
+.g-card.SR { border-color: #c99be0; } .g-card.UR { border-color: var(--brass-2); box-shadow: 0 0 18px rgba(226,196,122,.45); }
+.g-card b { color: var(--paper); font-size: 13px; text-align: center; }
+.g-card .new { position: absolute; top: -8px; right: -6px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; border-radius: 4px; padding: 0 5px; }
+@keyframes gIn { from { opacity: 0; transform: rotateY(90deg) scale(.9); } to { opacity: 1; transform: none; } }
+.g-rates td, .g-rates th { padding: 3px 10px 3px 0; text-align: left; font-size: 13px; }
+/* 收藏 */
+.c-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.c-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--zone-line); background: rgba(0,0,0,.18); cursor: pointer; color: inherit; font: inherit; }
+.c-cell.miss { opacity: .4; }
+.c-cell b { color: var(--paper); font-size: 13px; text-align: center; }
+.c-cell .cnt { font-size: 12px; color: var(--muted); }
 .b-bar { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--felt-deep); border-bottom: 1px solid var(--zone-line); padding: 12px 0; margin: 16px 0 8px; }
 .b-bar b { font-family: var(--serif); font-size: 22px; color: var(--paper); }
 .b-group { font-size: 15px; font-weight: 700; color: var(--paper); margin: 22px 0 10px; }
@@ -293,6 +328,8 @@ button.pk, button.gc { padding: 0; }
   .slot-label { min-width: 0; }
   .zrow { gap: 8px; } .zones { gap: 8px; }
   .b-grid { grid-template-columns: 1fr; }
+  .deck-grid { grid-template-columns: 1fr; }
+  .g-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .brand small, #status { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -341,16 +378,32 @@ button.pk, button.gc { padding: 0; }
       <label for="deckMe">你的牌組</label><select id="deckMe" class="field"></select>
       <label for="deckAI">AI 的牌組</label><select id="deckAI" class="field"></select>
     </div>
-    <div class="row" style="margin-top:12px"><button id="btnBuilder" class="btn">編輯自訂牌組</button></div>
-    <p class="note">預設牌組：標準、守城、餘燼、實驗。線上對戰時雙方各用自己選的牌組。</p>
+    <div class="row" style="margin-top:12px"><button id="btnDecks" class="btn">管理牌組</button></div>
+    <p class="note">預設牌組大家都能用。自訂牌組有 15 格，可以取名、複製、匯出、匯入；玩家只能放收藏裡有的卡，測試人員可以用全部的卡。線上對戰時雙方各用自己選的牌組。</p>
   </section>
 
   <section class="menu-group">
-    <h2>測試工具</h2>
+    <h2>抽卡與收藏</h2>
+    <div class="row profile-line"><span id="pfRole" class="role-chip">玩家</span><span id="pfPulls"></span><span id="pfColl"></span></div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnGacha" class="btn primary">抽卡</button>
+      <button id="btnCollection" class="btn">收藏</button>
+      <button id="btnRedeem" class="btn">輸入序號</button>
+    </div>
+    <p class="note">抽數用完可以輸入序號增加。收藏、牌組、抽數都存在這個瀏覽器裡，換電腦或清除瀏覽器資料就不見了。</p>
+  </section>
+
+  <section class="menu-group hidden" id="toolsBox">
+    <h2>測試工具 <span class="role-chip">測試人員</span></h2>
     <div class="row">
       <button id="btnWatch" class="btn">觀看 AI 對 AI</button>
       <button id="btnSim" class="btn">批次模擬</button>
       <button id="btnSettings" class="btn">規則設定</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnRateTest" class="btn">抽卡機率測試</button>
+      <button id="btnResetColl" class="btn">重設收藏</button>
+      <button id="btnCodegen" class="btn hidden">序號產生器</button>
     </div>
     <div class="row" style="margin-top:12px">
       <span id="recCount" style="color:var(--muted);font-size:14px"></span>
@@ -389,8 +442,13 @@ button.pk, button.gc { padding: 0; }
 </main>
 
 <main id="builder" class="hidden">
-  <h1 class="menu-title" style="font-size:30px">自訂牌組</h1>
-  <p class="menu-sub">從卡池挑 15 張，同名最多 3 張。</p>
+  <h1 class="menu-title" style="font-size:30px">編輯牌組 <small id="bSlot" class="b-slot"></small></h1>
+  <p class="menu-sub" id="bSub">從卡池挑 15 張，同名最多 3 張。</p>
+  <div class="row" style="margin-bottom:10px">
+    <label for="bName" style="color:var(--muted);font-size:14px">牌組名稱</label>
+    <input id="bName" class="field" maxlength="16" placeholder="牌組名稱">
+    <label class="chk"><input type="checkbox" id="bOwnedOnly"> 只顯示擁有的卡</label>
+  </div>
   <div class="row">
     <label for="bBase" style="color:var(--muted);font-size:14px">從這個牌組開始</label>
     <select id="bBase" class="field"></select>
@@ -400,10 +458,40 @@ button.pk, button.gc { padding: 0; }
   <div class="b-bar">
     <b id="bCount">0 / 15</b><span id="bMsg" class="note" style="margin:0"></span>
     <span style="flex:1"></span>
-    <button id="bBack" class="btn">返回選單</button>
+    <button id="bBack" class="btn">返回牌組</button>
     <button id="bSave" class="btn primary">儲存</button>
   </div>
   <div id="bList"></div>
+</main>
+
+<main id="decks" class="hidden page">
+  <h1 class="menu-title" style="font-size:30px">牌組</h1>
+  <p class="menu-sub">自訂牌組 15 格：可以取名、複製、匯出、匯入。預設牌組大家都能用，也可以複製到自訂格再改。</p>
+  <div class="b-bar"><b id="dCount"></b><span style="flex:1"></span><button id="dImport" class="btn">匯入牌組</button><button id="dBack" class="btn primary">返回選單</button></div>
+  <h2 class="b-group">自訂牌組</h2>
+  <div id="dSlots" class="deck-grid"></div>
+  <h2 class="b-group">預設牌組</h2>
+  <div id="dPresets" class="deck-grid"></div>
+</main>
+
+<main id="gacha" class="hidden page">
+  <h1 class="menu-title" style="font-size:30px">抽卡｜第一彈</h1>
+  <p class="menu-sub" id="gInfo"></p>
+  <div class="b-bar"><b id="gPulls"></b><span style="flex:1"></span>
+    <button id="gOne" class="btn">單抽（1 抽）</button><button id="gTen" class="btn primary">十連（10 抽，保底超稀有）</button>
+    <button id="gRedeem" class="btn">輸入序號</button><button id="gColl" class="btn">收藏</button><button id="gBack" class="btn">返回選單</button></div>
+  <details class="rules"><summary>機率</summary><div id="gRates"></div></details>
+  <div id="gResult" class="g-result"></div>
+</main>
+
+<main id="collection" class="hidden page">
+  <h1 class="menu-title" style="font-size:30px">收藏</h1>
+  <p class="menu-sub" id="cInfo"></p>
+  <div class="b-bar">
+    <select id="cOwn" class="field"><option value="all">全部</option><option value="have">已擁有</option><option value="miss">未擁有</option></select>
+    <select id="cRar" class="field"><option value="">全部稀有度</option><option value="UR">極稀有</option><option value="SR">超稀有</option><option value="R">稀有</option><option value="N">普通</option></select>
+    <span style="flex:1"></span><button id="cGacha" class="btn">抽卡</button><button id="cBack" class="btn primary">返回選單</button></div>
+  <div id="cList" class="c-grid"></div>
 </main>
 
 <section id="table" class="hidden">
@@ -446,7 +534,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.9.2';
+const VERSION = '0.10.0';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -2884,6 +2972,277 @@ if (typeof module !== 'undefined' && module.exports) module.exports = api;
 root.CardEngine = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 </script>
+<script>/* 新卡牌遊戲 — 牌組空間、收藏、抽卡、序號（v0.10）
+ * 沒有伺服器：所有資料存在玩家自己的瀏覽器（localStorage）。序號用 HMAC 簽章檢查真假，
+ * 但會看程式碼、會改瀏覽器資料的人還是繞得過，只能當「軟性」的門檻。真的要上線收費前要換成伺服器。
+ */
+(function (root) {
+'use strict';
+const E = root.CardEngine || (typeof require !== 'undefined' ? require('./engine.js') : null);
+
+// ─────────── 稀有度與卡包 ───────────
+const RARITIES = ['N', 'R', 'SR', 'UR'];
+const RARITY_NAME = { N: '普通', R: '稀有', SR: '超稀有', UR: '極稀有' };
+const RATES = { N: 60, R: 28, SR: 10, UR: 2 };   // 每抽的機率（%），同稀有度裡每張一樣
+const RARITY = {};
+const setR = (r, names) => { for (const n of names.split(' ')) RARITY[n] = r; };
+setR('UR', '順流之王 餘燼之王 圓舞曲・主旋律 圓舞曲・迴旋 魔術・預言師');
+setR('SR', '斷罪 亡骸巨兵 雙頭魔像 談判 黑市 禁咒 圓舞曲・第一拍 圓舞曲・第二拍 圓舞曲・第三拍 魔術・讀心 魔術・猜皇后 魔術・幕後');
+setR('R', '伏兵 雙子哨兵 同花盜賊 紅心騎士 掠奪令 止戈 封存 城門守衛 拾骨術士 傳承 壁壘 餘燼騎士 餘燼重燃 萬花筒 占卜師 強化裝甲 透視 魔術・暗樁 魔術・助手 魔術・大變活人');
+for (const d of E.POOL) if (!RARITY[d.name]) RARITY[d.name] = 'N';   // 其他都是普通（新卡沒設定時也一樣）
+const PACK = { id: 'pack1', name: '第一彈', cards: E.POOL.map(d => d.name) };
+const byRarity = r => PACK.cards.filter(n => RARITY[n] === r);
+const WELCOME_PULLS = 10;   // 新玩家送的抽數
+const TEN = 10;             // 十連：保底 1 張超稀有以上
+const SLOTS = 15;           // 自訂牌組格數
+
+// 亂數：瀏覽器用 crypto，測試可以傳自己的
+function cryptoRandom() {
+  const c = root.crypto || (typeof require !== 'undefined' ? require('crypto').webcrypto : null);
+  if (c && c.getRandomValues) { const a = new Uint32Array(1); c.getRandomValues(a); return a[0] / 4294967296; }
+  return Math.random();
+}
+function rollRarity(rand, min) {   // min：保底的最低稀有度
+  const pool = RARITIES.slice(RARITIES.indexOf(min || 'N'));
+  const total = pool.reduce((t, r) => t + RATES[r], 0);
+  let x = rand() * total;
+  for (const r of pool) { x -= RATES[r]; if (x < 0) return r; }
+  return pool[pool.length - 1];
+}
+function rollCard(rand, min) {
+  const r = rollRarity(rand, min), list = byRarity(r);
+  return list[Math.floor(rand() * list.length)];
+}
+// n 抽的結果（十連保底）
+function rollPack(n, rand) {
+  rand = rand || cryptoRandom;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(rollCard(rand));
+  if (n >= TEN && !out.some(x => RARITY[x] === 'SR' || RARITY[x] === 'UR')) out[n - 1] = rollCard(rand, 'SR');
+  return out;
+}
+
+// ─────────── SHA-256、HMAC（純 JS，瀏覽器、node 都能跑，不用等非同步） ───────────
+const K256 = new Uint32Array([0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d,
+  0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+  0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+function sha256(bytes) {
+  const l = bytes.length, n = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(n);
+  m.set(bytes); m[l] = 0x80;
+  const bits = l * 8; for (let i = 0; i < 4; i++) m[n - 1 - i] = (bits >>> (8 * i)) & 0xff;
+  const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]), w = new Uint32Array(64);
+  const rot = (x, k) => (x >>> k) | (x << (32 - k));
+  for (let o = 0; o < n; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (m[o + 4 * i] << 24) | (m[o + 4 * i + 1] << 16) | (m[o + 4 * i + 2] << 8) | m[o + 4 * i + 3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rot(w[i - 15], 7) ^ rot(w[i - 15], 18) ^ (w[i - 15] >>> 3), s1 = rot(w[i - 2], 17) ^ rot(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (hh + (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) + ((e & f) ^ (~e & g)) + K256[i] + w[i]) | 0;
+      const t2 = ((rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += hh;
+  }
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 8; i++) for (let j = 0; j < 4; j++) out[4 * i + j] = (h[i] >>> (24 - 8 * j)) & 0xff;
+  return out;
+}
+function hmac(key, msg) {
+  const k = new Uint8Array(64); k.set(key.length > 64 ? sha256(key) : key);
+  const ip = new Uint8Array(64 + msg.length), op = new Uint8Array(96);
+  for (let i = 0; i < 64; i++) { ip[i] = k[i] ^ 0x36; op[i] = k[i] ^ 0x5c; }
+  ip.set(msg, 64); op.set(sha256(ip), 64);
+  return sha256(op);
+}
+const hex = s => Uint8Array.from(s.match(/../g).map(x => parseInt(x, 16)));
+const utf8 = s => new TextEncoder().encode(s);
+
+// ─────────── 序號 ───────────
+// 格式：XXXX-XXXX-XXXX-XXXX（Crockford base32，80 bits）＝ 種類 2 bits｜數量 10 bits｜流水號 28 bits｜簽章 40 bits
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const CODE_KEY = hex(['a84c0d95d614d970', 'b73d05faa168e2a9', '0a9589b6f48d3407', 'faeeb2466d2fc382'].join(''));
+const CODE_TYPES = { 0: 'tester', 1: 'pulls', 2: 'admin' };
+const CODE_TYPE_ID = { tester: 0, pulls: 1, admin: 2 };
+function b32encode(bytes) {   // 10 bytes → 16 字
+  let bits = '', out = '';
+  for (const b of bytes) bits += b.toString(2).padStart(8, '0');
+  for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5), 2)];
+  return out;
+}
+function b32decode(s) {
+  let bits = '';
+  for (const ch of s) { const v = B32.indexOf(ch); if (v < 0) return null; bits += v.toString(2).padStart(5, '0'); }
+  const out = new Uint8Array(bits.length >> 3);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(bits.slice(8 * i, 8 * i + 8), 2);
+  return out;
+}
+const codeMac = payload => hmac(CODE_KEY, Uint8Array.from([0x43, 0x47, 0x31, ...payload])).slice(0, 5);   // "CG1" + 內容
+function makeCode(type, amount, serial) {
+  const t = CODE_TYPE_ID[type]; if (t === undefined) throw new Error('序號種類不對');
+  amount = Math.max(0, Math.min(1023, amount | 0)); serial = serial >>> 0 & 0x0fffffff;
+  const v = BigInt(t) << 38n | BigInt(amount) << 28n | BigInt(serial);
+  const payload = new Uint8Array(5); for (let i = 0; i < 5; i++) payload[i] = Number((v >> BigInt(8 * (4 - i))) & 0xffn);
+  const s = b32encode(Uint8Array.from([...payload, ...codeMac(payload)]));
+  return s.match(/.{4}/g).join('-');
+}
+function normalizeCode(s) {
+  const c = String(s || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1').replace(/U/g, 'V');
+  return c.length === 18 && c.startsWith('CG') ? c.slice(2) : c;
+}
+function readCode(s) {
+  const c = normalizeCode(s);
+  if (c.length !== 16) return { ok: false, msg: '序號是 16 個字（XXXX-XXXX-XXXX-XXXX）' };
+  const b = b32decode(c); if (!b) return { ok: false, msg: '序號有不認得的字' };
+  const payload = b.slice(0, 5), mac = codeMac(payload);
+  if (mac.some((x, i) => x !== b[5 + i])) return { ok: false, msg: '序號不正確' };
+  let v = 0n; for (const x of payload) v = v << 8n | BigInt(x);
+  const type = CODE_TYPES[Number(v >> 38n)], amount = Number((v >> 28n) & 0x3ffn), serial = Number(v & 0x0fffffffn);
+  if (!type) return { ok: false, msg: '序號不正確' };
+  return { ok: true, type, amount, serial, id: c };
+}
+
+// ─────────── 牌組代碼（匯出／匯入） ───────────
+const b64url = bytes => { let s = ''; for (const x of bytes) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64url = s => { const t = atob(s.replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(t, ch => ch.charCodeAt(0)); };
+function exportDeck(name, cards) {
+  const cnt = {}; for (const n of cards) cnt[n] = (cnt[n] || 0) + 1;
+  const body = JSON.stringify({ n: name, c: Object.entries(cnt) });
+  return 'CGD1-' + b64url(utf8(body));
+}
+// 匯入：牌組代碼，或一行一張的文字（「卡名 ×2」「卡名 x2」「2 卡名」「卡名」）
+function importDeck(text) {
+  text = String(text || '').trim();
+  let name = null, cards = [];
+  if (/^CGD1-/.test(text)) {
+    try {
+      const o = JSON.parse(new TextDecoder().decode(unb64url(text.slice(5).split(/\s/)[0])));
+      name = String(o.n || '').slice(0, 16);
+      for (const [n, k] of o.c) for (let i = 0; i < Math.min(9, k | 0); i++) cards.push(String(n));
+    } catch (e) { return { ok: false, msg: '牌組代碼壞掉了，請整段重新複製' }; }
+  } else {
+    for (const raw of text.split(/\n/)) {
+      const line = raw.trim(); if (!line) continue;
+      let m = line.match(/^(.+?)\s*[×xX＊*]\s*(\d+)$/) || null, n, k = 1;
+      if (m) { n = m[1].trim(); k = +m[2]; }
+      else if ((m = line.match(/^(\d+)\s*[×xX]?\s+(.+)$/))) { k = +m[1]; n = m[2].trim(); }
+      else n = line;
+      if (E.DEF[n]) for (let i = 0; i < Math.min(9, k); i++) cards.push(n);
+      else if (!name) name = line.slice(0, 16);   // 第一行不是卡名：當成牌組名稱
+      else return { ok: false, msg: `卡池裡沒有「${n}」` };
+    }
+  }
+  const unknown = cards.find(n => !E.DEF[n]);
+  if (unknown) return { ok: false, msg: `卡池裡沒有「${unknown}」` };
+  if (!cards.length) return { ok: false, msg: '沒有讀到任何卡' };
+  return { ok: true, name: name || '匯入的牌組', cards: sortDeck(cards) };
+}
+const ORDER = Object.fromEntries(E.POOL.map((d, i) => [d.name, i]));
+const sortDeck = cards => cards.slice().sort((a, b) => ORDER[a] - ORDER[b]);
+function deckText(name, cards) {   // 給人看的清單
+  const cnt = {}; for (const n of cards) cnt[n] = (cnt[n] || 0) + 1;
+  return [name, ...Object.entries(cnt).map(([n, k]) => `${n} ×${k}`)].join('\n');
+}
+
+// ─────────── 玩家資料（身分、抽數、收藏、牌組格） ───────────
+const PROFILE_KEY = 'cg-profile-v1', DECKS_KEY = 'cg-decks-v1';
+function createProfile(store) {
+  const fresh = { role: 'player', pulls: WELCOME_PULLS, collection: {}, redeemed: [], history: [], pulled: 0, created: Date.now() };
+  let st = store.get(PROFILE_KEY, null);
+  st = Object.assign(fresh, st && typeof st === 'object' ? st : {});   // 缺的欄位補預設值
+  if (!['player', 'tester', 'admin'].includes(st.role)) st.role = 'player';
+  let decks = store.get(DECKS_KEY, null);
+  if (!Array.isArray(decks)) {   // 舊版的單一自訂牌組搬到第 1 格
+    decks = Array(SLOTS).fill(null);
+    const old = store.get('cg-deck-custom', null);
+    if (Array.isArray(old) && old.length) decks[0] = { name: '自訂牌組', cards: sortDeck(old.filter(n => E.DEF[n])) };
+  }
+  while (decks.length < SLOTS) decks.push(null);
+  const save = () => { store.set(PROFILE_KEY, st); store.set(DECKS_KEY, decks); };
+  save();
+  const P = {
+    get role() { return st.role; },
+    get isTester() { return st.role === 'tester' || st.role === 'admin'; },
+    get isAdmin() { return st.role === 'admin'; },
+    get pulls() { return st.pulls; },
+    get pulled() { return st.pulled || 0; },
+    get history() { return st.history; },
+    get collection() { return st.collection; },
+    owned(name) { return st.collection[name] || 0; },
+    ownedKinds() { return PACK.cards.filter(n => st.collection[n]).length; },
+    // 牌組
+    get decks() { return decks; },
+    setDeck(i, deck) { decks[i] = deck ? { name: String(deck.name || '牌組').slice(0, 16), cards: sortDeck(deck.cards || []) } : null; save(); },
+    freeSlot() { return decks.findIndex(d => !d); },
+    missing(cards) {   // 玩家模式：還缺哪些卡（測試人員不缺）
+      if (P.isTester) return [];
+      const need = {}; for (const n of cards) need[n] = (need[n] || 0) + 1;
+      return Object.entries(need).filter(([n, k]) => k > P.owned(n)).map(([n, k]) => ({ name: n, need: k - P.owned(n) }));
+    },
+    deckStatus(cards) {   // ok｜incomplete｜missing
+      if (!cards || cards.length !== E.CFG.DECK_SIZE || E.validateDeck(cards)) return 'incomplete';
+      return P.missing(cards).length ? 'missing' : 'ok';
+    },
+    // 抽卡
+    pull(n, rand) {
+      if (n !== 1 && n !== TEN) throw new Error('只能單抽或十連');
+      if (st.pulls < n) return null;
+      const got = rollPack(n, rand), res = got.map(name => ({ name, rarity: RARITY[name], isNew: !st.collection[name] }));
+      for (const r of res) { st.collection[r.name] = (st.collection[r.name] || 0) + 1; }
+      for (const r of res) if (r.isNew && res.filter(x => x.name === r.name).indexOf(r) > 0) r.isNew = false;   // 同一抽裡第二張同名不算新
+      st.pulls -= n; st.pulled = (st.pulled || 0) + n;
+      st.history.unshift({ t: Date.now(), cards: got }); st.history = st.history.slice(0, 30);
+      save();
+      return res;
+    },
+    // 序號
+    redeem(text) {
+      const r = readCode(text);
+      if (!r.ok) return r;
+      if (st.redeemed.includes(r.serial + ':' + r.type)) return { ok: false, msg: '這個序號已經在這台裝置用過了' };
+      st.redeemed.push(r.serial + ':' + r.type);
+      let msg;
+      if (r.type === 'pulls') { st.pulls += r.amount; msg = `抽數 +${r.amount}（現在 ${st.pulls} 抽）`; }
+      else if (r.type === 'tester') { if (st.role === 'player') st.role = 'tester'; msg = '已切換成測試人員：可以使用全部的卡和測試工具'; }
+      else { st.role = 'admin'; msg = '已切換成管理員：可以產生序號'; }
+      save();
+      return { ok: true, type: r.type, amount: r.amount, msg };
+    },
+    setRole(role) { st.role = role; save(); },   // 管理員把自己切回玩家視角測試用
+    resetCollection() { st.collection = {}; st.pulls = WELCOME_PULLS; st.history = []; st.pulled = 0; save(); },
+    addPulls(n) { st.pulls += n; save(); }
+  };
+  return P;
+}
+function randomSerial() { const a = Math.floor(cryptoRandom() * 0x0fffffff); return a >>> 0; }
+function makeCodes(type, amount, count) {
+  const seen = new Set(), out = [];
+  while (out.length < count) { const s = randomSerial(); if (seen.has(s)) continue; seen.add(s); out.push(makeCode(type, amount, s)); }
+  return out;
+}
+// 機率測試：抽很多次看分布（不影響收藏）
+function rateTest(n, rand) {
+  rand = rand || cryptoRandom;
+  const per = {}, rar = { N: 0, R: 0, SR: 0, UR: 0 };
+  let tens = 0, tenNoGuarantee = 0;
+  for (let i = 0; i < n; i += TEN) {
+    const got = rollPack(TEN, rand); tens++;
+    if (!got.slice(0, 9).some(x => RARITY[x] === 'SR' || RARITY[x] === 'UR')) tenNoGuarantee++;
+    for (const x of got) { per[x] = (per[x] || 0) + 1; rar[RARITY[x]]++; }
+  }
+  return { n: tens * TEN, per, rar, tens, guaranteeUsed: tenNoGuarantee };
+}
+
+const api = { RARITIES, RARITY_NAME, RATES, RARITY, PACK, SLOTS, TEN, WELCOME_PULLS, rollPack, rollCard, sha256, hmac, makeCode, readCode, makeCodes,
+  exportDeck, importDeck, deckText, sortDeck, createProfile, rateTest, byRarity };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+root.CardMeta = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
 <script>/* 新卡牌遊戲 — 線上對戰（只傳選擇的同步）
  * 雙方用同一個種子開局，每個決策點只把「選了哪一個」傳給對方，兩邊各自用同一套引擎重算。
  * 每次傳選擇時附上當下盤面的雜湊，對不上就代表不同步（通常是兩邊版本不同）。
@@ -3231,7 +3590,7 @@ root.CardNet = api;
 <script>/* 新卡牌遊戲 — 畫面與操作（遊戲王式：發亮的卡可以用，點卡行動，同一張再點一次看詳細資料） */
 (function () {
 'use strict';
-const E = window.CardEngine, N = window.CardNet;
+const E = window.CardEngine, N = window.CardNet, MT = window.CardMeta;
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const LS = {
@@ -3270,7 +3629,7 @@ function toast(msg, ms = 2600) {
 }
 function showScreen(name) {
   $('#menu').classList.toggle('hidden', name !== 'menu');
-  $('#builder').classList.toggle('hidden', name !== 'builder');
+  for (const sc of ['builder', 'decks', 'gacha', 'collection']) $('#' + sc).classList.toggle('hidden', name !== sc);
   $('#table').classList.toggle('hidden', name !== 'table');
   $('#btnLeave').classList.toggle('hidden', name !== 'table');
   $('#btnMyExtra').classList.toggle('hidden', name !== 'table' || app.viewer === null);
@@ -3297,19 +3656,48 @@ function copyText(text) {
   else manual();
 }
 
-// ─────────── 牌組 ───────────
-function customDeck() { const d = LS.get('cg-deck-custom', null); return d && !E.validateDeck(d) ? d : null; }
-function deckByName(name) { return name === CUSTOM ? customDeck() || E.PRESETS['標準'] : E.PRESETS[name] || E.PRESETS['標準']; }
-function deckNames() { return [...Object.keys(E.PRESETS), ...(customDeck() ? [CUSTOM] : [])]; }
-function myDeck() { return deckByName(LS.get('cg-deck-me', '標準')); }
-function aiDeck() { return deckByName(LS.get('cg-deck-ai', '標準')); }
-function fillDeckSelects() {
-  const names = deckNames();
-  for (const [id, key] of [['#deckMe', 'cg-deck-me'], ['#deckAI', 'cg-deck-ai']]) {
-    let cur = LS.get(key, '標準'); if (!names.includes(cur)) cur = '標準';
-    $(id).innerHTML = names.map(n => `<option value="${esc(n)}" ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('');
-  }
+// ─────────── 牌組（預設牌組＋15 格自訂牌組） ───────────
+const PF = MT.createProfile(LS);   // 身分、抽數、收藏、牌組格
+const PRESET_NOTE = { 標準: '基本款', 守城: '防守', 餘燼: '墓地循環', 圓舞曲: '示範牌組（強度上限）', 新卡: '散卡試用', 實驗: '術卡當條件、血量槽', 魔術: '預言（草案）' };
+function migrateKey(v) { if (!v) return 'p:標準'; if (v === CUSTOM) return 'c:0'; return /^[pc]:/.test(v) ? v : 'p:' + v; }
+function deckEntries() {   // 所有牌組（預設＋自訂）
+  const out = Object.keys(E.PRESETS).map(n => ({ key: 'p:' + n, label: n, cards: E.PRESETS[n], preset: true }));
+  PF.decks.forEach((d, i) => { if (d) out.push({ key: 'c:' + i, label: d.name, cards: d.cards, preset: false, slot: i }); });
+  return out;
 }
+function entryUsable(e, forAI) { return e.preset || (forAI ? !E.validateDeck(e.cards) : PF.deckStatus(e.cards) === 'ok'); }
+function deckByKey(key, forAI) {
+  const e = deckEntries().find(x => x.key === migrateKey(key));
+  return e && entryUsable(e, forAI) ? e.cards : E.PRESETS['標準'];
+}
+function deckByName(key) { return deckByKey(key, true); }   // 批次模擬、觀戰用
+function myDeck() { return deckByKey(LS.get('cg-deck-me', 'p:標準'), false); }
+function aiDeck() { return deckByKey(LS.get('cg-deck-ai', 'p:標準'), true); }
+function deckOptions(sel, forAI) {
+  const all = deckEntries(), pre = all.filter(e => e.preset), cus = all.filter(e => !e.preset);
+  const opt = e => { const ok = entryUsable(e, forAI); return `<option value="${esc(e.key)}" ${e.key === sel ? 'selected' : ''} ${ok ? '' : 'disabled'}>${esc(e.label)}${ok ? '' : PF.deckStatus(e.cards) === 'missing' ? '（缺卡）' : '（未完成）'}</option>`; };
+  return `<optgroup label="預設牌組">${pre.map(opt).join('')}</optgroup>${cus.length ? `<optgroup label="自訂牌組">${cus.map(opt).join('')}</optgroup>` : ''}`;
+}
+function fillDeckSelects() {
+  for (const [id, key, forAI] of [['#deckMe', 'cg-deck-me', false], ['#deckAI', 'cg-deck-ai', true]]) {
+    let cur = migrateKey(LS.get(key, 'p:標準'));
+    const e = deckEntries().find(x => x.key === cur);
+    if (!e || !entryUsable(e, forAI)) cur = 'p:標準';
+    LS.set(key, cur);
+    $(id).innerHTML = deckOptions(cur, forAI);
+  }
+  renderProfile();
+}
+function renderProfile() {
+  const role = PF.isAdmin ? '管理員' : PF.isTester ? '測試人員' : '玩家';
+  $('#pfRole').textContent = role;
+  $('#pfPulls').textContent = `抽數 ${PF.pulls}`;
+  $('#pfColl').textContent = `收藏 ${PF.ownedKinds()} / ${MT.PACK.cards.length} 種`;
+  $('#toolsBox').classList.toggle('hidden', !PF.isTester);
+  $('#btnCodegen').classList.toggle('hidden', !PF.isAdmin);
+}
+const rarHTML = name => { const r = MT.RARITY[name]; return r ? `<span class="rar ${r}" title="${MT.RARITY_NAME[r]}">${r}</span>` : ''; };
+const fakeCard = name => ({ d: E.DEF[name], uid: -1, isPoker: false, name });
 
 // ─────────── 卡片外觀（平常只顯示名稱） ───────────
 function markCls(key) {
@@ -3351,6 +3739,7 @@ function cardInfoHTML(c, holder) {
     ${d.kind === 'monster' ? `<dt>花色牌值</dt><dd>${d.suit}${E.rankStr(d.rank)}</dd>` : ''}
     ${d.kind === 'monster' && E.CFG.SUMMON_LIMIT ? `<dt>召喚次數</dt><dd>每回合最多 ${d.rank <= 3 ? 3 : d.rank <= 9 ? 2 : 1} 次</dd>` : ''}
     <dt>條件</dt><dd>${esc(reqText(d))}</dd><dt>效果</dt><dd>${esc(d.text)}</dd>
+    ${MT.RARITY[d.name] ? `<dt>稀有度</dt><dd>${rarHTML(d.name)} ${MT.RARITY_NAME[MT.RARITY[d.name]]}｜擁有 ${PF.owned(d.name)} 張</dd>` : ''}
     ${holder && holder.materials.length ? `<dt>素材</dt><dd>${holder.materials.map(chipHTML).join(' ')}</dd>` : ''}
   </dl></div></div>`;
 }
@@ -3366,6 +3755,7 @@ function allCards(g) {
 }
 function cardByUid(uid) { return allCards(app.game).find(c => c.uid === uid) || null; }
 function holderOf(c) {
+  if (!app.game) return null;
   for (const ps of app.game.P) for (const h of [...ps.mons, ...ps.sts]) if (h && h.card === c) return h;
   return null;
 }
@@ -4351,45 +4741,211 @@ function exportRecords() {
   download(`對局紀錄-${stamp()}.json`, { exportedAt: new Date().toISOString(), version: E.VERSION, count: records.length, records });
 }
 
-// ─────────── 組牌 ───────────
-function openBuilder() {
-  const start = customDeck() || E.PRESETS[LS.get('cg-deck-me', '標準')] || E.PRESETS['標準'];
-  app.builder = { counts: countOf(start) };
-  $('#bBase').innerHTML = deckNames().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+// ─────────── 牌組空間 ───────────
+function openDecks() { showScreen('decks'); renderDecks(); }
+function deckSummary(cards) {   // 數量最多的幾張卡
+  const cnt = {}; for (const n of cards) cnt[n] = (cnt[n] || 0) + 1;
+  return Object.entries(cnt).sort((a, b) => b[1] - a[1] || (E.DEF[b[0]].rank - E.DEF[a[0]].rank)).slice(0, 4).map(([n, k]) => `${n}${k > 1 ? '×' + k : ''}`).join('、');
+}
+function deckStatusHTML(cards) {
+  const st = PF.deckStatus(cards), n = cards.length, size = E.CFG.DECK_SIZE;
+  if (st === 'ok') return '<span class="st ok">可以用</span>';
+  if (st === 'missing') return `<span class="st bad">缺 ${PF.missing(cards).reduce((t, x) => t + x.need, 0)} 張卡（收藏裡沒有）</span>`;
+  return `<span class="st bad">${n < size ? `還差 ${size - n} 張` : n > size ? `多了 ${n - size} 張` : E.validateDeck(cards)}</span>`;
+}
+function renderDecks() {
+  const cur = migrateKey(LS.get('cg-deck-me', 'p:標準')), used = PF.decks.filter(Boolean).length;
+  $('#dCount').textContent = `自訂 ${used} / ${MT.SLOTS} 格`;
+  $('#dSlots').innerHTML = PF.decks.map((d, i) => {
+    if (!d) return `<div class="deck-slot empty"><h3>空格 <small>第 ${i + 1} 格</small></h3><div class="acts"><button class="linkbtn" data-act="new" data-i="${i}">新增</button><button class="linkbtn" data-act="import" data-i="${i}">匯入</button></div></div>`;
+    const ok = PF.deckStatus(d.cards) === 'ok';
+    return `<div class="deck-slot${cur === 'c:' + i ? ' current' : ''}"><h3>${esc(d.name)} <small>第 ${i + 1} 格｜${d.cards.length} 張</small></h3>${deckStatusHTML(d.cards)}
+      <div class="keys">${esc(deckSummary(d.cards))}</div>
+      <div class="acts">${ok && cur !== 'c:' + i ? `<button class="linkbtn" data-act="use" data-k="c:${i}">設成我的牌組</button>` : ''}${cur === 'c:' + i ? '<span class="st ok">目前使用中</span>' : ''}
+        <button class="linkbtn" data-act="edit" data-i="${i}">編輯</button><button class="linkbtn" data-act="rename" data-i="${i}">改名</button>
+        <button class="linkbtn" data-act="copy" data-k="c:${i}">複製</button><button class="linkbtn" data-act="export" data-k="c:${i}">匯出</button>
+        <button class="linkbtn" data-act="delete" data-i="${i}">刪除</button></div></div>`;
+  }).join('');
+  $('#dPresets').innerHTML = Object.keys(E.PRESETS).map(n => {
+    const k = 'p:' + n;
+    return `<div class="deck-slot${cur === k ? ' current' : ''}"><h3>${esc(n)} <small>${esc(PRESET_NOTE[n] || '')}</small></h3>
+      <div class="keys">${esc(deckSummary(E.PRESETS[n]))}</div>
+      <div class="acts">${cur === k ? '<span class="st ok">目前使用中</span>' : `<button class="linkbtn" data-act="use" data-k="${k}">設成我的牌組</button>`}
+        <button class="linkbtn" data-act="copy" data-k="${k}">複製到自訂</button><button class="linkbtn" data-act="export" data-k="${k}">匯出</button></div></div>`;
+  }).join('');
+}
+function entryOf(key) { return deckEntries().find(e => e.key === key); }
+function decksClick(ev) {
+  const b = ev.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, i = b.dataset.i !== undefined ? +b.dataset.i : null, key = b.dataset.k;
+  if (act === 'new') openBuilder(i, { name: `牌組 ${i + 1}`, cards: [] });
+  else if (act === 'edit') openBuilder(i, PF.decks[i]);
+  else if (act === 'use') { LS.set('cg-deck-me', key); toast('已設成你的牌組'); renderDecks(); }
+  else if (act === 'rename') {
+    openModal({ title: '改名', body: `<input id="renameInput" class="field" maxlength="16" value="${esc(PF.decks[i].name)}" style="width:100%">`, dismissable: true,
+      buttons: [{ label: '取消', onClick: closeModal }, { label: '儲存', primary: true, onClick: () => {
+        const v = $('#renameInput').value.trim(); if (!v) { toast('名稱不能空白'); return; }
+        PF.setDeck(i, Object.assign({}, PF.decks[i], { name: v })); closeModal(); renderDecks();
+      } }] });
+    setTimeout(() => { const el = $('#renameInput'); if (el) { el.focus(); el.select(); } }, 30);
+  } else if (act === 'copy') {
+    const e = entryOf(key), slot = PF.freeSlot();
+    if (slot < 0) { toast('15 格都滿了，先刪掉一格'); return; }
+    PF.setDeck(slot, { name: `${e.label} 的副本`.slice(0, 16), cards: e.cards });
+    toast(`已複製到第 ${slot + 1} 格`); renderDecks();
+  } else if (act === 'export') {
+    const e = entryOf(key), code = MT.exportDeck(e.label, e.cards);
+    openModal({ title: `匯出：${e.label}`, desc: '把牌組代碼傳給朋友，對方在「匯入牌組」貼上就行。下面也有卡片清單。', dismissable: true,
+      body: `<textarea class="field" id="exportBox" readonly style="width:100%;height:90px;font-size:12px">${esc(code)}</textarea>
+        <pre class="note" style="white-space:pre-wrap;margin-top:8px">${esc(MT.deckText(e.label, e.cards))}</pre>`,
+      buttons: [{ label: '複製清單', onClick: () => copyText(MT.deckText(e.label, e.cards)) }, { label: '複製代碼', primary: true, onClick: () => copyText(code) }] });
+  } else if (act === 'import') openImport(i);
+  else if (act === 'delete') {
+    openModal({ title: `刪除「${PF.decks[i].name}」？`, desc: '刪除後無法復原。要保留的話先匯出。', dismissable: true,
+      buttons: [{ label: '取消', onClick: closeModal }, { label: '刪除', primary: true, onClick: () => {
+        PF.setDeck(i, null); if (migrateKey(LS.get('cg-deck-me', '')) === 'c:' + i) LS.set('cg-deck-me', 'p:標準');
+        closeModal(); renderDecks();
+      } }] });
+  }
+}
+function openImport(slot) {
+  if (slot === undefined || slot === null) slot = PF.freeSlot();
+  if (slot < 0) { toast('15 格都滿了，先刪掉一格'); return; }
+  openModal({ title: `匯入牌組到第 ${slot + 1} 格`, desc: '貼上牌組代碼（CGD1- 開頭），或一行一張卡的清單（例如「小兵 ×3」；第一行可以寫牌組名稱）。', dismissable: true,
+    body: '<textarea class="field" id="importBox" style="width:100%;height:160px;font-size:13px"></textarea><p id="importMsg" class="note"></p>',
+    buttons: [{ label: '取消', onClick: closeModal }, { label: '匯入', primary: true, onClick: () => {
+      const r = MT.importDeck($('#importBox').value);
+      if (!r.ok) { $('#importMsg').textContent = r.msg; return; }
+      PF.setDeck(slot, { name: r.name, cards: r.cards });
+      closeModal(); renderDecks();
+      const miss = PF.missing(r.cards).reduce((t, x) => t + x.need, 0);
+      toast(miss ? `已匯入「${r.name}」，但收藏裡還缺 ${miss} 張卡` : `已匯入「${r.name}」`);
+    } }] });
+}
+
+// ─────────── 組牌（編輯一格自訂牌組） ───────────
+function openBuilder(slot, deck) {
+  if (slot === undefined || slot === null) { slot = PF.freeSlot(); if (slot < 0) slot = 0; deck = PF.decks[slot]; }
+  deck = deck || { name: `牌組 ${slot + 1}`, cards: [] };
+  app.builder = { slot, counts: countOf(deck.cards), ownedOnly: !PF.isTester && LS.get('cg-owned-only', true) };
+  $('#bSlot').textContent = `第 ${slot + 1} 格`;
+  $('#bName').value = deck.name;
+  $('#bOwnedOnly').checked = app.builder.ownedOnly;
+  $('#bOwnedOnly').parentElement.classList.toggle('hidden', PF.isTester);
+  $('#bSub').textContent = PF.isTester ? '測試人員：全部的卡都能用。從卡池挑 15 張，同名最多 3 張。' : '從收藏挑 15 張，同名最多 3 張，而且不能超過你擁有的張數。';
+  $('#bBase').innerHTML = deckEntries().map(e => `<option value="${esc(e.key)}">${esc(e.label)}${e.preset ? '（預設）' : ''}</option>`).join('');
   showScreen('builder'); renderBuilder();
 }
 function countOf(deck) { const c = {}; for (const n of deck) c[n] = (c[n] || 0) + 1; return c; }
 function builderDeck() { return E.POOL.flatMap(d => Array(app.builder.counts[d.name] || 0).fill(d.name)); }
+const maxCopies = name => (PF.isTester ? E.CFG.MAX_COPIES : Math.min(E.CFG.MAX_COPIES, PF.owned(name)));
 function renderBuilder() {
-  const cnt = app.builder.counts, total = builderDeck().length;
-  $('#bCount').textContent = `${total} / ${E.CFG.DECK_SIZE}`;
-  $('#bMsg').textContent = total === E.CFG.DECK_SIZE ? '可以儲存' : total < E.CFG.DECK_SIZE ? `還差 ${E.CFG.DECK_SIZE - total} 張` : `多了 ${total - E.CFG.DECK_SIZE} 張`;
-  $('#bSave').disabled = total !== E.CFG.DECK_SIZE;
+  const cnt = app.builder.counts, deck = builderDeck(), total = deck.length, size = E.CFG.DECK_SIZE;
+  const miss = PF.missing(deck).reduce((t, x) => t + x.need, 0);
+  $('#bCount').textContent = `${total} / ${size}`;
+  $('#bMsg').textContent = (total === size ? '張數剛好' : total < size ? `還差 ${size - total} 張（可以先存成草稿）` : `多了 ${total - size} 張`) + (miss ? `；收藏裡缺 ${miss} 張` : '');
+  $('#bSave').disabled = total > size;
   const groups = [['monster', '怪獸'], ['spell', '魔法'], ['trap', '陷阱']];
   $('#bList').innerHTML = groups.map(([kind, title]) => {
-    const defs = E.POOL.filter(d => d.kind === kind).sort((a, b) => a.rank - b.rank);
+    const defs = E.POOL.filter(d => d.kind === kind && (!app.builder.ownedOnly || PF.owned(d.name) || cnt[d.name])).sort((a, b) => a.rank - b.rank);
     return `<h2 class="b-group">${title}</h2><div class="b-grid">${defs.map(d => {
-      const n = cnt[d.name] || 0, fake = { d, uid: -1, isPoker: false };
-      return `<div class="b-row${n ? ' has' : ''}">${gcHTML(fake, { key: null, cls: 'small' })}
-        <div class="b-info"><b>${esc(d.name)}</b>${d.series ? `<span class="series">${esc(d.series)}</span>` : ''}
+      const n = cnt[d.name] || 0, own = PF.owned(d.name), mx = maxCopies(d.name);
+      const ownTxt = PF.isTester ? '' : `<span class="own${own < n ? ' short' : ''}">擁有 ${own}</span>`;
+      return `<div class="b-row${n ? ' has' : ''}${!PF.isTester && !own ? ' locked' : ''}">${gcHTML(fakeCard(d.name), { key: null, cls: 'small' })}
+        <div class="b-info"><b>${esc(d.name)}</b>${rarHTML(d.name)}${d.series ? `<span class="series">${esc(d.series)}</span>` : ''}${ownTxt}
           <span class="meta">${d.kind === 'monster' ? `${d.suit}${E.rankStr(d.rank)}｜` : ''}${esc(reqText(d))}</span><p>${esc(d.text)}</p></div>
         <div class="b-qty"><button data-b="-" data-n="${esc(d.name)}" aria-label="少一張 ${esc(d.name)}" ${n ? '' : 'disabled'}>−</button><b>${n}</b>
-          <button data-b="+" data-n="${esc(d.name)}" aria-label="多一張 ${esc(d.name)}" ${n >= E.CFG.MAX_COPIES || total >= E.CFG.DECK_SIZE ? 'disabled' : ''}>＋</button></div></div>`;
-    }).join('')}</div>`;
+          <button data-b="+" data-n="${esc(d.name)}" aria-label="多一張 ${esc(d.name)}" ${n >= mx || total >= size ? 'disabled' : ''}>＋</button></div></div>`;
+    }).join('') || '<p class="note">這一類還沒有擁有的卡。</p>'}</div>`;
   }).join('');
 }
 function builderClick(e) {
   const b = e.target.closest('[data-b]'); if (!b) return;
   const name = b.dataset.n, cnt = app.builder.counts;
-  cnt[name] = Math.max(0, Math.min(E.CFG.MAX_COPIES, (cnt[name] || 0) + (b.dataset.b === '+' ? 1 : -1)));
+  cnt[name] = Math.max(0, Math.min(b.dataset.b === '+' ? maxCopies(name) : E.CFG.MAX_COPIES, (cnt[name] || 0) + (b.dataset.b === '+' ? 1 : -1)));
   renderBuilder();
 }
 function saveBuilder() {
-  const deck = builderDeck(), err = E.validateDeck(deck);
-  if (err) { toast(err); return; }
-  LS.set('cg-deck-custom', deck); LS.set('cg-deck-me', CUSTOM);
-  toast('已儲存，並設成你的牌組');
-  showScreen('menu');
+  const deck = builderDeck(), name = $('#bName').value.trim() || `牌組 ${app.builder.slot + 1}`;
+  if (deck.length > E.CFG.DECK_SIZE) { toast(`最多 ${E.CFG.DECK_SIZE} 張`); return; }
+  PF.setDeck(app.builder.slot, { name, cards: deck });
+  if (PF.deckStatus(deck) === 'ok') { LS.set('cg-deck-me', 'c:' + app.builder.slot); toast(`已儲存「${name}」，並設成你的牌組`); }
+  else toast(`已儲存「${name}」（還不能用：${PF.deckStatus(deck) === 'missing' ? '收藏裡缺卡' : '張數不對'}）`);
+  openDecks();
+}
+
+// ─────────── 抽卡 ───────────
+function openGacha() { showScreen('gacha'); renderGacha(); }
+function renderGacha(keep) {
+  $('#gPulls').textContent = `抽數 ${PF.pulls}`;
+  $('#gOne').disabled = PF.pulls < 1; $('#gTen').disabled = PF.pulls < MT.TEN;
+  $('#gInfo').textContent = `卡包「${MT.PACK.name}」：現在的 ${MT.PACK.cards.length} 張術卡全部在裡面。你已經收集 ${PF.ownedKinds()} 種，共抽了 ${PF.pulled} 次。`;
+  const cnt = r => MT.byRarity(r).length;
+  $('#gRates').innerHTML = `<table class="g-rates"><tr><th>稀有度</th><th>每抽機率</th><th>張數</th><th>每張機率</th></tr>${MT.RARITIES.slice().reverse().map(r =>
+    `<tr><td><span class="rar ${r}">${r}</span> ${MT.RARITY_NAME[r]}</td><td>${MT.RATES[r]}%</td><td>${cnt(r)}</td><td>${(MT.RATES[r] / cnt(r)).toFixed(2)}%</td></tr>`).join('')}</table>
+    <p class="note">十連保底：前 9 張都沒有超稀有以上時，第 10 張一定是超稀有或極稀有（所以實際機率比表上略高，約超稀有 12%、極稀有 2.5%）。同名卡組牌最多用 3 張，多抽到的會留在收藏裡。</p>`;
+  if (!keep) $('#gResult').innerHTML = '';
+}
+function doPull(n) {
+  const res = PF.pull(n);
+  if (!res) { toast('抽數不夠。可以輸入序號增加抽數。'); return; }
+  renderGacha(true);
+  $('#gResult').innerHTML = res.map((r, i) => `<div class="g-card ${r.rarity}" style="animation-delay:${i * 110}ms">
+    ${r.isNew ? '<span class="new">NEW</span>' : ''}${gcHTML(fakeCard(r.name), { key: null, cls: 'small' })}<b>${esc(r.name)}</b><span>${rarHTML(r.name)} <span class="own">擁有 ${PF.owned(r.name)}</span></span></div>`).join('');
+  const best = res.find(r => r.rarity === 'UR') || res.find(r => r.rarity === 'SR');
+  if (best) toast(`抽到${MT.RARITY_NAME[best.rarity]}：${best.name}！`, 3000);
+}
+
+// ─────────── 收藏 ───────────
+function openCollection() { showScreen('collection'); renderCollection(); }
+function renderCollection() {
+  const own = $('#cOwn').value, rar = $('#cRar').value, total = MT.PACK.cards.length, kinds = PF.ownedKinds();
+  const copies = MT.PACK.cards.reduce((t, n) => t + PF.owned(n), 0);
+  $('#cInfo').textContent = `已收集 ${kinds} / ${total} 種（${Math.round(kinds / total * 100)}%），共 ${copies} 張。${PF.isTester ? '測試人員組牌時可以用全部的卡，收藏只影響這個畫面。' : ''}`;
+  const order = { UR: 0, SR: 1, R: 2, N: 3 };
+  const names = MT.PACK.cards.filter(n => (!rar || MT.RARITY[n] === rar) && (own === 'all' || (own === 'have') === !!PF.owned(n)))
+    .sort((a, b) => order[MT.RARITY[a]] - order[MT.RARITY[b]]);
+  $('#cList').innerHTML = names.map(n => `<button class="c-cell${PF.owned(n) ? '' : ' miss'}" data-card="${esc(n)}">${gcHTML(fakeCard(n), { key: null, cls: 'small' })}
+    <b>${esc(n)}</b><span>${rarHTML(n)}</span><span class="cnt">${PF.owned(n) ? `擁有 ${PF.owned(n)}` : '未擁有'}</span></button>`).join('') || '<p class="note">沒有符合的卡。</p>';
+}
+
+// ─────────── 序號、測試工具 ───────────
+function openRedeem() {
+  openModal({ title: '輸入序號', desc: '序號是 16 個字（XXXX-XXXX-XXXX-XXXX），大小寫都可以。可以增加抽數，或切換成測試人員。', dismissable: true,
+    body: '<input id="redeemInput" class="field" style="width:100%;font-family:var(--mono, monospace);letter-spacing:.05em" placeholder="XXXX-XXXX-XXXX-XXXX"><p id="redeemMsg" class="note"></p>',
+    buttons: [{ label: '關閉', onClick: closeModal }, { label: '兌換', primary: true, onClick: () => {
+      const r = PF.redeem($('#redeemInput').value);
+      if (!r.ok) { $('#redeemMsg').textContent = r.msg; return; }
+      closeModal(); toast(r.msg, 4000); fillDeckSelects();   // 身分改變時，牌組選單能選的也會變
+      if (!$('#gacha').classList.contains('hidden')) renderGacha(true);
+    } }] });
+  setTimeout(() => { const el = $('#redeemInput'); if (el) el.focus(); }, 30);
+}
+function openCodegen() {
+  if (!PF.isAdmin) return;
+  openModal({ title: '序號產生器（管理員）', desc: '產生的序號在每台裝置各能用一次。同一個序號可以給好幾個人（各自的裝置都能兌換）；要一人一個就多產生幾個。', dismissable: true,
+    body: `<div class="form"><label for="cgType">種類</label><select id="cgType" class="field"><option value="pulls">抽數</option><option value="tester">測試人員</option><option value="admin">管理員</option></select>
+      <label for="cgAmt">抽數（種類是抽數時）</label><input id="cgAmt" class="field" type="number" min="1" max="1023" value="10" style="width:6em">
+      <label for="cgN">產生幾個</label><input id="cgN" class="field" type="number" min="1" max="100" value="5" style="width:6em"></div>
+      <textarea class="field" id="cgOut" readonly style="width:100%;height:150px;margin-top:10px;font-size:13px"></textarea>`,
+    buttons: [{ label: '複製', onClick: () => copyText($('#cgOut').value) }, { label: '產生', primary: true, onClick: () => {
+      const type = $('#cgType').value, amt = Math.max(1, Math.min(1023, parseInt($('#cgAmt').value, 10) || 10)), n = Math.max(1, Math.min(100, parseInt($('#cgN').value, 10) || 1));
+      const label = type === 'pulls' ? `抽數 +${amt}` : type === 'tester' ? '測試人員' : '管理員';
+      $('#cgOut').value = MT.makeCodes(type, amt, n).map(c => `${c}　${label}`).join('\n');
+    } }] });
+}
+function openRateTest() {
+  const n = 10000, t = MT.rateTest(n);
+  const rows = MT.RARITIES.slice().reverse().map(r => `<tr><td><span class="rar ${r}">${r}</span></td><td>${MT.RATES[r]}%</td><td>${(t.rar[r] / t.n * 100).toFixed(2)}%</td></tr>`).join('');
+  const per = Object.values(t.per), lo = Math.min(...per), hi = Math.max(...per);
+  openModal({ title: '抽卡機率測試', desc: `模擬 ${t.n} 抽（${t.tens} 次十連），不會加進收藏。`, dismissable: true,
+    body: `<table class="g-rates"><tr><th>稀有度</th><th>設定</th><th>實際（含保底）</th></tr>${rows}</table>
+      <p class="note">十連保底觸發 ${t.guaranteeUsed} 次（${(t.guaranteeUsed / t.tens * 100).toFixed(1)}%）。每張卡被抽到的次數：最少 ${lo}、最多 ${hi}。</p>`,
+    buttons: [{ label: '再測一次', onClick: () => { closeModal(); openRateTest(); } }, { label: '關閉', primary: true, onClick: closeModal }] });
+}
+function openResetColl() {
+  openModal({ title: '重設收藏？', desc: `收藏清空，抽數回到 ${MT.WELCOME_PULLS}。牌組格和身分不變。`, dismissable: true,
+    buttons: [{ label: '取消', onClick: closeModal }, { label: '重設', primary: true, onClick: () => { PF.resetCollection(); closeModal(); fillDeckSelects(); toast('收藏已重設'); } }] });
 }
 
 // ─────────── 規則設定 ───────────
@@ -4444,7 +5000,7 @@ const STAT_NAME = k => {
 };
 function openSim() {
   loadCfg();
-  const opts = sel => deckNames().map(n => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  const opts = sel => deckOptions(migrateKey(sel), true);
   openModal({ title: '批次模擬', desc: '兩個 AI 用目前的規則設定對打很多局。AI 很簡單，數字只能看方向。', dismissable: true,
     body: `<div class="form"><label for="simA">先手牌組</label><select id="simA" class="field">${opts(LS.get('cg-deck-me', '標準'))}</select>
       <label for="simB">後手牌組</label><select id="simB" class="field">${opts(LS.get('cg-deck-ai', '標準'))}</select>
@@ -4456,7 +5012,7 @@ async function runSim() {
   const n = Math.min(10000, Math.max(50, parseInt($('#simN').value, 10) || 1000));
   $('#simGo').disabled = true;
   loadCfg();
-  const decks = [deckByName($('#simA').value), deckByName($('#simB').value)];
+  const decks = [deckByKey($('#simA').value, true), deckByKey($('#simB').value, true)];
   const r = await E.simulate(n, randSeed(), async done => { $('#simProg').textContent = `${done} / ${n}`; await new Promise(res => setTimeout(res, 0)); }, decks);
   const dec = r.wins[0] + r.wins[1];
   const pct = x => (dec ? (x / dec * 100).toFixed(1) : '0') + '%';
@@ -4492,12 +5048,23 @@ function init() {
   $('#nameInput').onchange = () => LS.set('cg-name', myName());
   $('#deckMe').onchange = e => LS.set('cg-deck-me', e.target.value);
   $('#deckAI').onchange = e => LS.set('cg-deck-ai', e.target.value);
-  $('#btnBuilder').onclick = openBuilder;
+  $('#btnDecks').onclick = openDecks;
+  $('#dSlots').addEventListener('click', decksClick); $('#dPresets').addEventListener('click', decksClick);
+  $('#dImport').onclick = () => openImport();
+  $('#dBack').onclick = () => showScreen('menu');
   $('#bList').addEventListener('click', builderClick);
-  $('#bLoad').onclick = () => { app.builder.counts = countOf(deckByName($('#bBase').value)); renderBuilder(); };
+  $('#bLoad').onclick = () => { const e = entryOf($('#bBase').value); if (e) { app.builder.counts = countOf(e.cards); if (e.preset && !$('#bName').value.trim()) $('#bName').value = e.label; renderBuilder(); } };
   $('#bClear').onclick = () => { app.builder.counts = {}; renderBuilder(); };
+  $('#bOwnedOnly').onchange = e => { app.builder.ownedOnly = e.target.checked; LS.set('cg-owned-only', e.target.checked); renderBuilder(); };
   $('#bSave').onclick = saveBuilder;
-  $('#bBack').onclick = () => showScreen('menu');
+  $('#bBack').onclick = () => openDecks();
+  $('#btnGacha').onclick = openGacha; $('#btnCollection').onclick = openCollection; $('#btnRedeem').onclick = openRedeem;
+  $('#gOne').onclick = () => doPull(1); $('#gTen').onclick = () => doPull(MT.TEN);
+  $('#gRedeem').onclick = openRedeem; $('#gColl').onclick = openCollection; $('#gBack').onclick = () => showScreen('menu');
+  $('#cOwn').onchange = renderCollection; $('#cRar').onchange = renderCollection;
+  $('#cGacha').onclick = openGacha; $('#cBack').onclick = () => showScreen('menu');
+  $('#cList').addEventListener('click', e => { const b = e.target.closest('[data-card]'); if (b) showDetails(fakeCard(b.dataset.card)); });
+  $('#btnRateTest').onclick = openRateTest; $('#btnResetColl').onclick = openResetColl; $('#btnCodegen').onclick = openCodegen;
   $('#btnAI').onclick = startVsAI;
   $('#btnWatch').onclick = startWatch;
   $('#btnHost').onclick = openHost;

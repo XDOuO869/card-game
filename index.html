@@ -364,14 +364,14 @@ button.pk, button.gc { padding: 0; }
     <details class="rules">
       <summary>規則重點</summary>
       <ul>
-        <li>自己的回合開始時，血量槽裡的命牌張數 ≥ HP 就贏。HP 由後手抽的血量牌決定（7–13）。</li>
+        <li>回合的順序：抽牌階段 → 準備階段 → 判定階段 → 主要階段 → 結束階段。判定階段時，血量槽裡的命牌張數 ≥ HP 就贏。HP 由後手抽的血量牌決定（7–13）。</li>
         <li>命牌手牌可以放進血量槽。槽是公開的，對手每回合可以拿 1 張去湊條件。</li>
         <li>額外牌組有 15 張術卡（同名最多 3 張），只有你看得到。湊齊條件就能召喚怪獸，或取得魔法、陷阱。</li>
         <li>條件可以用：自己的手牌（命牌、術卡）、自己場上的怪獸、對手血量槽的命牌。對子、順子這類牌型只能用有花色牌值的卡（命牌、怪獸）。</li>
         <li>素材壓在卡的下方，不算 HP。代價付掉後，命牌進自己的槽，術卡進墓地。</li>
         <li>手牌上限：命牌 6 張、術卡 3 張。回合結束時超過的部分，命牌進槽、術卡送墓地。</li>
         <li>每回合一次：從墓地召喚怪獸，或把魔陷加入手牌，要付那張卡的條件（卡片另外寫明的除外）。</li>
-        <li>魔術系列：預言師的「預言」是召喚它的對子的牌值（標在卡上，例如「預言 7・3/5」）。自己的回合開始時，預言師下方和預言牌值相同的卡（命牌、怪獸都算，鬼牌算任何牌值）有 5 張以上，也算獲勝。</li>
+        <li>魔術系列：預言師的「預言」是召喚它的對子的牌值（標在卡上，例如「預言 7・3/5」）。自己的判定階段，預言師下方和預言牌值相同的卡（命牌、怪獸都算，鬼牌算任何牌值）有 5 張以上，也算獲勝。</li>
         <li>同名怪獸每回合召喚次數：牌值 1–3 三次、4–9 兩次、10 以上一次。宣言召喚時就算一次，被無效也不退；從墓地召喚被無效，墓地的每回合一次也一樣用掉。</li>
         <li>每回合最多 3 隻怪獸可以攻擊。戰鬥比牌值，小的被破壞，一樣大就一起破壞。</li>
         <li>對手沒有怪獸時可以直接攻擊：移除對手槽 1 張命牌，或從牌堆加 1 張命牌到自己的槽。</li>
@@ -446,7 +446,7 @@ button.pk, button.gc { padding: 0; }
 (function (root) {
 'use strict';
 
-const VERSION = '0.9.0';
+const VERSION = '0.9.2';
 
 const DEFAULT_CFG = {
   HP_BASE: 6,               // HP = HP_BASE + ⌈血量牌牌值/2⌉
@@ -547,7 +547,7 @@ const POOL = [
   C('同花盜賊', 'monster', '1 回合 1 次：拔除 1 個素材，將對方槽 1 張命牌移到你的槽（計入使用次數）。', M('♠', 9, { req: ['suit', 3], mode: 'material' })),
   C('紅心騎士', 'monster', '戰鬥破壞對方怪獸時，那隻怪獸的命牌素材改放進你的槽。', M('♥', 10, { req: ['monster_plus', 1], mode: 'material' })),
   C('巨像', 'monster', '沒有效果。', M('♦', 12, { req: ['same_rank', 3], mode: 'material' })),
-  C('順流之王', 'monster', '你的回合開始結算時，這張卡的命牌素材也算進 HP。', M('♠', 13, { req: ['straight', 5], mode: 'material', countMaterials: true })),
+  C('順流之王', 'monster', '你的判定階段，這張卡的命牌素材也算進 HP。', M('♠', 13, { req: ['straight', 5], mode: 'material', countMaterials: true })),
   C('號令', 'spell', '抽 2 張。', { req: ['same_rank', 2] }),
   C('掠奪令', 'spell', '破壞對方場上 1 張卡。', { req: ['suit', 2] }),
   C('重整', 'spell', '從自己的槽選 1 張命牌加入手牌，再從命牌手牌選 1 張放進槽。', { req: ['any', 1] }),
@@ -606,7 +606,7 @@ POOL.push(
 );
 // 第四批：魔術系列（草案 v0.3，2026-10-24，名稱暫定）＋配套散卡
 POOL.push(
-  C('魔術・預言師', 'monster', '自己場上只能有 1 隻「魔術・預言師」。用來召喚這張卡的對子的牌值，就是這張卡的「預言」（標在卡上）。此卡名的②效果 1 回合 1 次。①自己的回合開始判定勝負時，這張卡下方和「預言」牌值相同的卡（命牌、怪獸都算；鬼牌算任何牌值）有 5 張以上，也算自己獲勝。②從自己的手牌、槽，或自己場上其他怪獸的下方，選 1 張和「預言」牌值相同的卡，疊到這張卡下方。',
+  C('魔術・預言師', 'monster', '自己場上只能有 1 隻「魔術・預言師」。用來召喚這張卡的對子的牌值，就是這張卡的「預言」（標在卡上）。此卡名的②效果 1 回合 1 次。①自己的判定階段，這張卡下方和「預言」牌值相同的卡（命牌、怪獸都算；鬼牌算任何牌值）有 5 張以上，也算自己獲勝。②從自己的手牌、槽，或自己場上其他怪獸的下方，選 1 張和「預言」牌值相同的卡，疊到這張卡下方。',
     M('♠', 6, { req: ['same_rank', 2], mode: 'material', series: '魔術', unique: true })),
   C('魔術・暗樁', 'monster', '此卡名的效果 1 回合 1 次。召喚成功時，可以發動：從對方的槽選 1 張和「預言」牌值相同的命牌，疊到這張卡下方（不算使用對方槽的次數）。',
     M('♦', 3, { req: ['any', 1], mode: 'material', series: '魔術', trig: { summoned: true } })),
@@ -620,7 +620,7 @@ POOL.push(
     { req: ['any', 2], series: '魔術' }),
   C('魔術・幕後', 'spell', '此卡名的效果 1 回合 1 次。自己場上的「魔術・預言師」下方有卡時才能發動：對方從牌堆抽 N 張（N = 預言師下方的卡數，最多 2）。你宣言其中有幾張和預言師下方的卡同花色，對方公開確認。猜對：那些卡加入你的手牌；猜錯：加入對方的手牌。',
     { req: ['any', 1], series: '魔術', oncePerTurn: true }),
-  C('魔術・大變活人', 'trap', '此卡名的效果 1 回合 1 次。對方宣言攻擊自己的「魔術」怪獸，或以它為對象發動效果時：那次攻擊或發動無效，把攻擊的怪獸或發動的那張卡疊到自己場上 1 隻「魔術」怪獸下方（它原本的素材回牌組）。下次自己的回合開始、判定勝負前，那張卡送墓地，之後可以從自己的手牌、槽，或自己場上其他怪獸、其他怪獸的下方，選 1 張卡疊到那隻「魔術」怪獸下方。',
+  C('魔術・大變活人', 'trap', '此卡名的效果 1 回合 1 次。對方宣言攻擊自己的「魔術」怪獸，或以它為對象發動效果時：那次攻擊或發動無效，把攻擊的怪獸或發動的那張卡疊到自己場上 1 隻「魔術」怪獸下方（它原本的素材回牌組）。下次自己的準備階段，那張卡送墓地，之後可以從自己的手牌、槽，或自己場上其他怪獸、其他怪獸的下方，選 1 張卡疊到那隻「魔術」怪獸下方。',
     { req: ['any', 1], series: '魔術', oncePerTurn: true }),
   C('物資調配', 'spell', '以自己場上 2 隻怪獸為對象：把其中 1 隻（發動時決定）連同它下方的卡，全部疊到另 1 隻下方當素材。', { req: ['any', 1] })
 );
@@ -843,7 +843,7 @@ class PState {
     this.usedOpp = 0; this.bonusOpp = 0; this.gyUsed = 0; this.noAttackTurn = -1; this.guard = null;
     this.summoned = {}; this.attackers = new Set(); this.once = {}; this.incomeCap = null;
     this.bigLock = -1;   // 亡骸巨兵①：這個回合不能召喚牌值 12 以上的怪獸
-    this.vanish = [];    // 大變活人：下次自己的回合開始時要送墓地的卡 { fm, card }
+    this.vanish = [];    // 大變活人：下次自己的準備階段要送墓地的卡 { fm, card }
   }
 }
 class FieldMon {
@@ -888,7 +888,7 @@ class Game {
       for (let i = 0; i < 4; i++) ps.hand.push(this.deck.pop());
       ps.hand.push(new Poker(++this.uidc, 0, null));
     }
-    this.turn = 0; this.cur = 0; this.blocked = new Set(); this.result = null; this.chain = null;
+    this.turn = 0; this.cur = 0; this.blocked = new Set(); this.result = null; this.chain = null; this.phase = '';
     this.startedAt = new Date().toISOString();
   }
 
@@ -1330,16 +1330,22 @@ class Game {
       if (this.turn > CFG.MAX_TURNS) return this.finish(null, '回合上限');
       this.log(`第 ${this.turn} 回合：${this.nm(p)}`, null, null, 'turn');
       if (this.P[p].guard) { this.P[p].guard = null; this.log(`${this.nm(p)} 的壁壘效果結束`); }
-      await this.vanishReturn(p);
-      if (this.slotScore(p) >= this.hp) return this.finish(p, '槽滿');
-      if (this.predictWin(p)) { const pf = this.predictFm(p); this.log(`★ 預言成真：${pf.card} 下方有 ${this.predictCount(pf)} 張 ${rankStr(pf.predict)}`, null, null, 'fx'); return this.finish(p, '預言成真'); }
-      let drew = null;
+      this.resetTurn(p);
+      // 抽牌階段：抽 1 張（先手第一回合不抽）；要抽卻抽不到就判負
+      this.phase = '抽牌階段';
       if (this.turn > 1 || CFG.P1_DRAWS_TURN1) {
         if (!this.deck.length) return this.finish(1 - p, '牌庫耗盡');
-        drew = this.deck.pop(); this.P[p].hand.push(drew);
+        const drew = this.deck.pop(); this.P[p].hand.push(drew);
+        this.handAdded(p, [drew]); await this.flushTriggers(); this.check();
       }
-      this.resetTurn(p);
-      if (drew) { this.handAdded(p, [drew]); await this.flushTriggers(); this.check(); }
+      // 準備階段：寫「準備階段」的效果（大變活人的替換）
+      this.phase = '準備階段'; this.onEvent('state');
+      await this.vanishReturn(p); await this.flushTriggers();
+      // 判定階段：槽滿，或卡片寫的勝利條件（預言）
+      this.phase = '判定階段';
+      if (this.slotScore(p) >= this.hp) return this.finish(p, '槽滿');
+      if (this.predictWin(p)) { const pf = this.predictFm(p); this.log(`★ 預言成真：${pf.card} 下方有 ${this.predictCount(pf)} 張 ${rankStr(pf.predict)}`, null, null, 'fx'); return this.finish(p, '預言成真'); }
+      this.phase = '主要階段';
       this.onEvent('state');
       for (let i = 0; i < 80; i++) {
         const acts = this.legalMain(p);
@@ -1351,6 +1357,7 @@ class Game {
         await this.flushTriggers();
         this.check(); this.onEvent('state');
       }
+      this.phase = '結束階段';
       await this.endPhase(p);
       this.check();
       this.cur = 1 - p;
@@ -1692,10 +1699,15 @@ class Game {
     if (!n) { this.log('牌堆沒牌了'); return; }
     const drawn = []; for (let i = 0; i < n; i++) drawn.push(this.deck.pop());
     const suits = new Set();
-    for (const m of pf.materials) { const u = unit(m); if (u && !u[4] && u[1]) suits.add(u[1]); }   // 鬼牌、萬用花色的素材不算花色
+    for (const m of pf.materials) {   // 鬼牌、萬花筒這類任意花色的素材：四種花色都算
+      const u = unit(m);
+      if (u && u[4]) SUITS.forEach(x => suits.add(x)); else if (u && u[1]) suits.add(u[1]);
+    }
     const actual = drawn.filter(c => c.joker || suits.has(c.suit)).length;
-    this.log(`${this.nm(q)} 從牌堆抽 ${n} 張（先不加入手牌）；預言師下方的花色：${[...suits].join('') || '沒有'}`);
-    const k = await this.decide(p, 'declare', { prompt: `幕後：${this.nm(q)} 抽了 ${n} 張。其中有幾張和預言師下方的卡同花色（${[...suits].join('') || '沒有'}；鬼牌算同花色）？`,
+    const st = suits.size === 4 ? '四種都有' : [...suits].join('') || '沒有';
+    this.log(`${this.nm(q)} 從牌堆抽 ${n} 張（先不加入手牌，只有 ${this.nm(q)} 看得到）；預言師下方的花色：${st}`,
+      `${this.nm(q)} 從牌堆抽到 ${fmt(drawn)}（先不加入手牌，對方還看不到）；預言師下方的花色：${st}`, q, 'fx reveal');
+    const k = await this.decide(p, 'declare', { prompt: `幕後：${this.nm(q)} 抽了 ${n} 張。其中有幾張和預言師下方的卡同花色（${st}；抽到的鬼牌算同花色）？`,
       opts: Array.from({ length: n + 1 }, (_, i) => ({ label: `${i} 張` })), kind: 'bt_count', meta: { n, suits: suits.size } });
     if (k < 0 || k > n) throw new Error('不合法的宣言');
     this.log(`${this.nm(p)} 宣言 ${k} 張；${this.nm(q)} 公開 ${fmt(drawn)}（同花色 ${actual} 張）`, null, null, 'fx');
@@ -1736,7 +1748,7 @@ class Game {
     host.materials.push(card);
     me.vanish.push({ fm: host, card });
     this.stat('vanish');
-    this.log(`→ ${card} 消失了，變成 ${host.card} 下方的卡（${this.nm(p)} 下個回合開始時送墓地）${src && src.materials.length ? '；它原本的素材回牌組' : ''}`, null, null, 'kill');
+    this.log(`→ ${card} 消失了，變成 ${host.card} 下方的卡（${this.nm(p)} 下個準備階段送墓地）${src && src.materials.length ? '；它原本的素材回牌組' : ''}`, null, null, 'kill');
   }
   vanishAddCands(p, host) {
     const me = this.P[p], out = [];
@@ -1748,7 +1760,7 @@ class Game {
     }
     return out;
   }
-  async vanishReturn(p) {   // 自己的回合開始、判定勝負前
+  async vanishReturn(p) {   // 自己的準備階段
     const me = this.P[p]; if (!me.vanish.length) return;
     const list = me.vanish; me.vanish = [];
     for (const v of list) {
@@ -2081,15 +2093,17 @@ class Game {
     if (!t || t.negated) return;
     t.negated = true; this.stat('negate');
     const me = this.P[t.pid], op = this.P[1 - t.pid];
+    const back = [];
     for (const c of t.oppTaken) {                        // 拿走的命牌退回原本的槽
       if (me.slot.includes(c)) remove(me.slot, c);
       else if (t.data.mats && t.data.mats.includes(c)) remove(t.data.mats, c);
       else if (this.deck.includes(c)) remove(this.deck, c);
       else if (!c.isPoker && this.P[c.owner].gy.includes(c)) { remove(this.P[c.owner].gy, c); c.asPoker = true; }
-      op.slot.push(c);
+      else continue;   // 連鎖中已經被別的效果移走（例如迴旋③又把它拿回對方的槽）：不再退回，避免同一張出現兩次
+      op.slot.push(c); back.push(c);
       if (op.guard) op.guard.left++;
     }
-    if (t.oppTaken.length) { this.log(`↩ ${fmt(t.oppTaken)} 退回 ${this.nm(1 - t.pid)} 的槽`); this.stat('returned', t.oppTaken.length); }
+    if (back.length) { this.log(`↩ ${fmt(back)} 退回 ${this.nm(1 - t.pid)} 的槽`); this.stat('returned', back.length); }
     t.oppTaken = [];
     this.log(t.kind === 'attack' ? `✗ ${t.card} 的攻擊被無效` : `✗ ${t.card} 被無效`, null, null, 'fx');
     if (t.kind === 'summon') {
@@ -3496,7 +3510,7 @@ function linkText(l) {
 function renderMid() {
   const g = app.game; let html;
   if (g.result) html = '<div class="turnline">對局結束</div>';
-  else html = `<div class="turnline">第 ${g.turn} 回合｜${esc(g.names[g.cur])} 的回合</div><div>牌堆 ${g.deck.length} 張｜HP ${g.hp}（血量牌 ${g.hpCard}）</div>`;
+  else html = `<div class="turnline">第 ${g.turn} 回合｜${esc(g.names[g.cur])} 的回合${g.phase ? `｜${g.phase}` : ''}</div><div>牌堆 ${g.deck.length} 張｜HP ${g.hp}（血量牌 ${g.hpCard}）</div>`;
   $('#mid').innerHTML = html;
   renderChain();
 }
@@ -4076,7 +4090,11 @@ function begin(agents, seed, viewer, mode, names, decks) {
   const g = new E.Game(agents, seed, {
     mode, decks, names: names || agents.map(a => a.name),
     onChainStep: () => new Promise(r => setTimeout(r, CHAIN_STEP[app.speed] || 600)),
-    onEvent: () => { if (no !== app.gameNo) throw new Error('aborted'); scheduleRender(); }
+    onEvent: (ev, e) => {
+      if (no !== app.gameNo) throw new Error('aborted');
+      if (ev === 'log' && e && e.priv && e.owner === app.viewer && /\breveal\b/.test(e.cls || '')) toast(e.priv, 5000);   // 只有自己看得到的牌（例如幕後對方抽的牌）
+      scheduleRender();
+    }
   });
   app.game = g;
   $('#log').innerHTML = '';
